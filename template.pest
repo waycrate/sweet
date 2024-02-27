@@ -1,0 +1,51 @@
+// TODO: Add the full sets
+modifier = {
+    ^"super"
+  | ^"ctrl"
+  | ^"alt"
+  | ^"shift"
+}
+
+key = { ^"enter" | ^"return" | ASCII_ALPHANUMERIC }
+
+escape_lf   = _{ "\\\n" }
+WHITESPACE  = _{ " " | "\t" | escape_lf }
+not_newline = _{ !NEWLINE ~ !escape_lf ~ ANY }
+
+command_composite     = _{ !(NEWLINE | "{" | "," | "}" | "-" | escape_lf) ~ ANY }
+command_component     =  { command_composite* }
+command_component_and =  { "," ~ command_component }
+command_component_to  =  { "-" ~ command_component }
+command_range         =  { "{" ~ command_component ~ (command_component_and | command_component_to)* ~ "}" }
+
+composite_catchall = _{ !(NEWLINE | "{" | "," | "}" | "-") ~ ANY }
+component          = { "\\," | "\\\\" | "\\{" | "\\}" | composite_catchall }
+component_and      =  { "," ~ component }
+component_to       =  { "-" ~ component }
+range              =  { "{" ~ component ~ (component_and | component_to)* ~ "}" }
+
+modifier_in_range = _{!(NEWLINE | "{" | "," | "}") ~ modifier}
+modifier_range              =  { "{" ~ modifier_in_range ~ ("," ~ modifier_in_range)* ~ "}" }
+
+prefix            =  { ("@" | "~")* }
+keybind           =  { prefix ~ key }
+keybind_or_range  =  { keybind | range }
+modifier_or_range =  _{ modifier | modifier_range }
+concat            = _{ "+" }
+
+comment = ${ WHITESPACE* ~ "#" ~ not_newline* }
+
+chunk   =  { (command_range | not_newline)* }
+command = ${ NEWLINE ~ WHITESPACE+ ~ chunk ~ (escape_lf ~ chunk)* }
+
+binding = {
+    ((modifier_or_range ~ concat)* ~ keybind_or_range) ~ comment? ~ command
+}
+
+content = _{ comment | binding | NEWLINE }
+
+main = {
+    SOI ~ content* ~ EOI
+}
+
+
