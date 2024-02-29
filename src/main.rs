@@ -1,5 +1,5 @@
 use anyhow::{bail, Result};
-use std::fs;
+use std::{fmt::Debug, fs};
 
 use pest::{iterators::Pair, Parser};
 use pest_derive::Parser;
@@ -8,23 +8,26 @@ use pest_derive::Parser;
 #[grammar = "template.pest"]
 pub struct SwhkdParser;
 
-fn dynamic_power_set_vec<T>(v: &mut Vec<Vec<T>>, append: T)
+fn dynamic_power_set_vec<T>(v: &mut Vec<Vec<T>>, append: &[T])
 where
-    T: AsRef<str> + Clone,
+    T: AsRef<str> + Clone + Debug,
 {
-    if append.as_ref().eq("_") {
-        return;
+    let mut all_clones = vec![];
+    for item in append {
+        if item.as_ref().eq("_") {
+            continue;
+        }
+        let mut v_clone = if v.is_empty() {
+            vec![vec![]]
+        } else {
+            v.clone()
+        };
+        for set in v_clone.iter_mut() {
+            set.push(item.clone());
+        }
+        all_clones.extend(v_clone);
     }
-
-    if v.is_empty() {
-        v.push(vec![append]);
-        return;
-    }
-    let mut v_clone = v.clone();
-    for set in v_clone.iter_mut() {
-        set.push(append.clone());
-    }
-    v.extend(v_clone);
+    v.extend(all_clones);
 }
 
 fn binding_parser(pair: Pair<'_, Rule>) {
@@ -33,19 +36,23 @@ fn binding_parser(pair: Pair<'_, Rule>) {
     for component in pair.into_inner() {
         match component.as_rule() {
             Rule::modifier => {
-                dynamic_power_set_vec(&mut modifiers, component.as_str());
+                dynamic_power_set_vec(&mut modifiers, &[component.as_str()]);
             }
 
             Rule::modifier_range => {
-                for modifier in component.into_inner().map(|component| component.as_str()) {
-                    dynamic_power_set_vec(&mut modifiers, modifier);
-                }
+                let modifier: Vec<_> = component
+                    .into_inner()
+                    .map(|component| component.as_str())
+                    .collect();
+                dynamic_power_set_vec(&mut modifiers, &modifier);
             }
 
             Rule::modifier_omit_range => {
-                for modifier in component.into_inner().map(|component| component.as_str()) {
-                    dynamic_power_set_vec(&mut modifiers, modifier);
-                }
+                let modifier: Vec<_> = component
+                    .into_inner()
+                    .map(|component| component.as_str())
+                    .collect();
+                dynamic_power_set_vec(&mut modifiers, &modifier);
             }
 
             Rule::range => {
@@ -82,6 +89,9 @@ fn binding_parser(pair: Pair<'_, Rule>) {
                         _ => {}
                     }
                 }
+            }
+            Rule::keybind => {
+                keysyms.push(component.as_str().to_string());
             }
             _ => {}
         }

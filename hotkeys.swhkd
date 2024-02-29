@@ -17,8 +17,8 @@
 # super + a
 #  asd foo
 
-# super + {alt + , _, shift + } a
-#  asd foo
+super + {alt + , _, shift + } a
+  asd foo
 
 # super + {_, shift +} {a-z}
 #  asd {g-z,foo,bar,baz}
@@ -26,5 +26,5 @@
 # super + @a
 #  asd foo
 
-super + { _, alt + } {a, b}
-	{a, b} {c, d}
+# super + { _, alt + } {a, b}
+# 	{a, b} {c, d}
