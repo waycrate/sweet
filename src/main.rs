@@ -8,30 +8,44 @@ use pest_derive::Parser;
 #[grammar = "template.pest"]
 pub struct SwhkdParser;
 
+fn dynamic_power_set_vec<T>(v: &mut Vec<Vec<T>>, append: T)
+where
+    T: AsRef<str> + Clone,
+{
+    if append.as_ref().eq("_") {
+        return;
+    }
+
+    if v.is_empty() {
+        v.push(vec![append]);
+        return;
+    }
+    let mut v_clone = v.clone();
+    for set in v_clone.iter_mut() {
+        set.push(append.clone());
+    }
+    v.extend(v_clone);
+}
+
 fn binding_parser(pair: Pair<'_, Rule>) {
     let mut modifiers = vec![];
     let mut keysyms = vec![];
     for component in pair.into_inner() {
         match component.as_rule() {
             Rule::modifier => {
-                modifiers.push(vec![component.as_str()]);
+                dynamic_power_set_vec(&mut modifiers, component.as_str());
             }
 
             Rule::modifier_range => {
-                let modifier: Vec<_> = component
-                    .into_inner()
-                    .map(|component| component.as_str())
-                    .collect(); // The grammar only allows discrete values of modifiers.
-                                // We will not support ranges for them.
-                modifiers.push(modifier);
+                for modifier in component.into_inner().map(|component| component.as_str()) {
+                    dynamic_power_set_vec(&mut modifiers, modifier);
+                }
             }
 
             Rule::modifier_omit_range => {
-                let modifier: Vec<_> = component
-                    .into_inner()
-                    .map(|component| component.as_str())
-                    .collect();
-                modifiers.push(modifier);
+                for modifier in component.into_inner().map(|component| component.as_str()) {
+                    dynamic_power_set_vec(&mut modifiers, modifier);
+                }
             }
 
             Rule::range => {
@@ -41,7 +55,7 @@ fn binding_parser(pair: Pair<'_, Rule>) {
                             keysyms.push(range_component.as_str().to_string());
                         }
                         Rule::key_dashed_range => {
-                            let mut bounds = range_component.into_inner().into_iter();
+                            let mut bounds = range_component.into_inner();
                             let lower_bound: char = bounds
                                 .next()
                                 .unwrap()
@@ -72,11 +86,14 @@ fn binding_parser(pair: Pair<'_, Rule>) {
             _ => {}
         }
     }
-    println!("modifiers: {:#?}, keysyms: {:#?}", modifiers, keysyms);
+    println!(
+        "modifier cartesian product: {:#?}, keysyms: {:#?}",
+        modifiers, keysyms
+    );
 }
 
 fn main() -> Result<()> {
-    let Some(arg) = std::env::args().skip(1).next() else {
+    let Some(arg) = std::env::args().nth(1) else {
         bail!("please supply a path to a hotkeys config file");
     };
     let raw_content = fs::read_to_string(arg)?;
