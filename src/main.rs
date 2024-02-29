@@ -8,24 +8,27 @@ use pest_derive::Parser;
 #[grammar = "template.pest"]
 pub struct SwhkdParser;
 
-fn dynamic_power_set_vec<T>(v: &mut Vec<Vec<T>>, append: &[T]) -> Vec<Vec<T>>
+fn dynamic_power_set_vec<T>(v: &[Vec<T>], append: &[T]) -> Vec<Vec<T>>
 where
-    T: AsRef<str> + Clone + Debug,
+    T: AsRef<str> + Clone,
 {
-    let mut all_clones = vec![];
+    let mut all_clones = Vec::with_capacity(v.len() * append.len());
+
     for item in append {
         if v.is_empty() {
             all_clones.push(vec![item.clone()]);
             continue;
         }
-        let mut v_clone = v.clone();
-        for set in v_clone.iter_mut() {
+
+        for set in v {
+            let mut new_set = set.clone();
             if !item.as_ref().eq("_") {
-                set.push(item.clone());
+                new_set.push(item.clone());
             }
+            all_clones.push(new_set);
         }
-        all_clones.extend(v_clone);
     }
+
     all_clones
 }
 
