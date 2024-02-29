@@ -1,8 +1,11 @@
-# {super, alt} + {a, b}
-# 	{librewolf, firefox} {spoiderman, betmen}
-# 
-# {super, alt} + {ctrl, alt} + {a, b}
-# 	{librewolf, firefox} {spoiderman, betmen} {play, pause}
+{super, alt} + {ctrl, shift} + {a, b}
+	{librewolf, firefox} {spoiderman, betmen} {play, pause}
+
+super + {_, shift +} a
+ asd {foo, bar}
+
+super + {alt + , _, shift + } a
+ asd foo
 
 # Try this case where I misspelled `shift`
 # {super, alt} + {ctrl, shit} + {a, b}
@@ -11,14 +14,11 @@
 # super + a
 # 	gnome-overview
 
-super + {_, shift +} a
- asd {foo, bar}
+# {super, alt} + {a, b}
+# 	{librewolf, firefox} {spoiderman, betmen}
 
 # super + a
 #  asd foo
-
-super + {alt + , _, shift + } a
- asd foo
 
 # super + {_, shift +} {a-z}
 #  asd {g-z,foo,bar,baz}

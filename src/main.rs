@@ -14,11 +14,11 @@ where
 {
     let mut all_clones = vec![];
     for item in append {
-        let mut v_clone = if v.is_empty() {
-            vec![vec![]]
-        } else {
-            v.clone()
-        };
+        if v.is_empty() {
+            all_clones.push(vec![item.clone()]);
+            continue;
+        }
+        let mut v_clone = v.clone();
         for set in v_clone.iter_mut() {
             if !item.as_ref().eq("_") {
                 set.push(item.clone());
