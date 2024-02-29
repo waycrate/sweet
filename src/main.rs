@@ -8,26 +8,25 @@ use pest_derive::Parser;
 #[grammar = "template.pest"]
 pub struct SwhkdParser;
 
-fn dynamic_power_set_vec<T>(v: &mut Vec<Vec<T>>, append: &[T])
+fn dynamic_power_set_vec<T>(v: &mut Vec<Vec<T>>, append: &[T]) -> Vec<Vec<T>>
 where
     T: AsRef<str> + Clone + Debug,
 {
     let mut all_clones = vec![];
     for item in append {
-        if item.as_ref().eq("_") {
-            continue;
-        }
         let mut v_clone = if v.is_empty() {
             vec![vec![]]
         } else {
             v.clone()
         };
         for set in v_clone.iter_mut() {
-            set.push(item.clone());
+            if !item.as_ref().eq("_") {
+                set.push(item.clone());
+            }
         }
         all_clones.extend(v_clone);
     }
-    v.extend(all_clones);
+    all_clones
 }
 
 fn binding_parser(pair: Pair<'_, Rule>) {
@@ -36,7 +35,7 @@ fn binding_parser(pair: Pair<'_, Rule>) {
     for component in pair.into_inner() {
         match component.as_rule() {
             Rule::modifier => {
-                dynamic_power_set_vec(&mut modifiers, &[component.as_str()]);
+                modifiers = dynamic_power_set_vec(&mut modifiers, &[component.as_str()]);
             }
 
             Rule::modifier_range => {
@@ -44,7 +43,7 @@ fn binding_parser(pair: Pair<'_, Rule>) {
                     .into_inner()
                     .map(|component| component.as_str())
                     .collect();
-                dynamic_power_set_vec(&mut modifiers, &modifier);
+                modifiers = dynamic_power_set_vec(&mut modifiers, &modifier);
             }
 
             Rule::modifier_omit_range => {
@@ -52,7 +51,7 @@ fn binding_parser(pair: Pair<'_, Rule>) {
                     .into_inner()
                     .map(|component| component.as_str())
                     .collect();
-                dynamic_power_set_vec(&mut modifiers, &modifier);
+                modifiers = dynamic_power_set_vec(&mut modifiers, &modifier);
             }
 
             Rule::range => {

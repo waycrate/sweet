@@ -11,14 +11,14 @@
 # super + a
 # 	gnome-overview
 
-# super + {_, shift +} a
-#  asd {foo, bar}
+super + {_, shift +} a
+ asd {foo, bar}
 
 # super + a
 #  asd foo
 
 super + {alt + , _, shift + } a
-  asd foo
+ asd foo
 
 # super + {_, shift +} {a-z}
 #  asd {g-z,foo,bar,baz}
