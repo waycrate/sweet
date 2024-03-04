@@ -17,7 +17,7 @@ range_allow = { "\\," | "\\\\" | "\\{" | "\\}" | "\\-" }
 
 keybind_component = _{ !range_deny ~ (range_allow | keybind) }
 
-key_dashed_range    = { keybind_component ~ "-" ~ keybind_component }
+key_dashed_range    =  { keybind_component ~ "-" ~ keybind_component }
 key_or_dashed_range = _{ key_dashed_range | keybind_component }
 
 range = {
@@ -41,14 +41,14 @@ concat                           = _{ "+" }
 comment = _{ WHITESPACE* ~ "#" ~ not_newline* }
 
 command_composite     = _{ !range_deny ~ (range_allow | ANY) }
-command_component     =  { command_composite* }
+command_component     =  { command_composite+ }
 visible_composite     =  { command_composite }
 dashed_range          =  { visible_composite ~ WHITESPACE* ~ "-" ~ WHITESPACE* ~ visible_composite }
-command_component_and =  { WHITESPACE* ~ "," ~ WHITESPACE* ~ (dashed_range | command_component) }
+command_component_and =  _{ WHITESPACE* ~ "," ~ WHITESPACE* ~ (dashed_range | command_component) }
 
-command_with_brace =  { "{" ~ (command_component ~ command_component_and+) | (dashed_range ~ command_component_and*) ~ "}" }
-chunk              =  { (command_with_brace | not_newline)* }
-command            = ${ NEWLINE ~ WHITESPACE+ ~ chunk ~ (escape_lf ~ chunk)* }
+inside_braces      =  _{ (command_component ~ command_component_and+) | (dashed_range ~ command_component_and*) }
+command_with_brace =  { "{" ~ inside_braces ~ "}" }
+command            = ${ NEWLINE ~ WHITESPACE+ ~ (command_with_brace | command_component)* }
 
 binding = {
     ((modifier_or_range | modifier_omit_range)* ~ (keybind | range)) ~ comment? ~ command
