@@ -9,30 +9,6 @@ use pest_derive::Parser;
 #[grammar = "template.pest"]
 pub struct SwhkdParser;
 
-fn dynamic_power_set_vec<T>(v: &[Vec<T>], append: &[T]) -> Vec<Vec<T>>
-where
-    T: AsRef<str> + Clone,
-{
-    let mut all_clones = Vec::with_capacity(v.len() * append.len());
-
-    for item in append {
-        if v.is_empty() {
-            all_clones.push(vec![item.clone()]);
-            continue;
-        }
-
-        for set in v {
-            let mut new_set = set.clone();
-            if !item.as_ref().eq("_") {
-                new_set.push(item.clone());
-            }
-            all_clones.push(new_set);
-        }
-    }
-
-    all_clones
-}
-
 #[derive(Debug)]
 pub enum Token {
     Modifier(String),
@@ -42,22 +18,14 @@ pub enum Token {
 
 fn binding_parser(pair: Pair<'_, Rule>) {
     let mut tokens = vec![];
+    let mut comm = vec![];
     for component in pair.into_inner() {
         match component.as_rule() {
             Rule::modifier => {
                 tokens.push(vec![Token::Modifier(component.as_str().to_string())]);
             }
 
-            Rule::modifier_range => {
-                tokens.push(
-                    component
-                        .into_inner()
-                        .map(|component| Token::Modifier(component.as_str().to_string()))
-                        .collect(),
-                );
-            }
-
-            Rule::modifier_omit_range => {
+            Rule::modifier_range | Rule::modifier_omit_range => {
                 tokens.push(
                     component
                         .into_inner()
@@ -106,11 +74,75 @@ fn binding_parser(pair: Pair<'_, Rule>) {
             Rule::keybind => {
                 tokens.push(vec![Token::Key(component.as_str().to_string())]);
             }
+            Rule::command => {
+                for subcomponent in component.into_inner() {
+                    match subcomponent.as_rule() {
+                        Rule::command_component => {
+                            comm.push(vec![Token::Command(subcomponent.as_str().to_string())]);
+                        }
+                        Rule::command_with_brace => {
+                            let mut command_variants = vec![];
+
+                            for thing in subcomponent.into_inner() {
+                                match thing.as_rule() {
+                                    Rule::command_component => command_variants
+                                        .push(Token::Command(thing.as_str().to_string())),
+                                    Rule::dashed_range => {
+                                        let mut bounds = thing.into_inner();
+                                        let lower_bound: char = bounds
+                                            .next()
+                                            .unwrap()
+                                            .as_str()
+                                            .parse()
+                                            .expect("failed to parse lower bound");
+                                        let upper_bound: char = bounds
+                                            .next()
+                                            .unwrap()
+                                            .as_str()
+                                            .parse()
+                                            .expect("failed to parse upper bound");
+
+                                        if !lower_bound.is_ascii() || !upper_bound.is_ascii() {
+                                            eprintln!("lower and upper bounds are not ascii");
+                                            return;
+                                        }
+                                        assert!(lower_bound < upper_bound);
+
+                                        command_variants.extend(
+                                            (lower_bound..=upper_bound)
+                                                .map(|key| Token::Command(key.to_string())),
+                                        );
+                                    }
+                                    _ => {}
+                                }
+                            }
+                            comm.push(command_variants);
+                        }
+                        _ => {}
+                    }
+                }
+            }
             _ => {}
         }
     }
-    let multi_cartesian_product: Vec<_> = tokens.iter().multi_cartesian_product().collect();
-    println!("multi_cartesian_product: {:#?}", multi_cartesian_product);
+    let bind_cartesian_product: Vec<_> = tokens.iter().multi_cartesian_product().collect();
+    let command_cartesian_product: Vec<_> = comm.iter().multi_cartesian_product().collect();
+    let bind_len = bind_cartesian_product.len();
+    let command_len = command_cartesian_product.len();
+
+    assert_eq!(
+        bind_len, command_len,
+        "the cartesian products of the binding variants {bind_len} does not equal the possible command variants {command_len}."
+    );
+
+    let composition: Vec<_> = bind_cartesian_product
+        .into_iter()
+        .zip(command_cartesian_product.into_iter())
+        .collect();
+
+    for (binding, command) in composition {
+        println!("{:?} => {:?}", binding, command);
+    }
 }
 
 fn main() -> Result<()> {

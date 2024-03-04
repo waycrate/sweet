@@ -1,11 +1,18 @@
 {super, alt} + {ctrl, shift} + {a, b}
 	{librewolf, firefox} {spoiderman, betmen} {play, pause}
 
-super + {_, shift +} a
- asd {foo, bar}
-
-super + {alt + , _, shift + } a
- asd foo
+# Try this case where the number of variants the binding can
+# take on does not equal the number of variants the command
+# can take on
+#
+# {super, alt} + {ctrl, shift} + {a, b, c}
+# 	{librewolf, firefox} {spoiderman, betmen} {play, pause}
+# 
+# super + {_, shift +} a
+#  asd {foo, bar}
+# 
+# super + {alt + , _, shift + } a
+#  asd foo
 
 # Try this case where I misspelled `shift`
 # {super, alt} + {ctrl, shit} + {a, b}
