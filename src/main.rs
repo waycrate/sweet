@@ -1,4 +1,5 @@
 use anyhow::{bail, Result};
+use itertools::Itertools;
 use std::{fmt::Debug, fs};
 
 use pest::{iterators::Pair, Parser};
@@ -32,36 +33,45 @@ where
     all_clones
 }
 
+#[derive(Debug)]
+pub enum Token {
+    Modifier(String),
+    Key(String),
+    Command(String),
+}
+
 fn binding_parser(pair: Pair<'_, Rule>) {
-    let mut modifiers = vec![];
-    let mut keysyms = vec![];
+    let mut tokens = vec![];
     for component in pair.into_inner() {
         match component.as_rule() {
             Rule::modifier => {
-                modifiers = dynamic_power_set_vec(&mut modifiers, &[component.as_str()]);
+                tokens.push(vec![Token::Modifier(component.as_str().to_string())]);
             }
 
             Rule::modifier_range => {
-                let modifier: Vec<_> = component
-                    .into_inner()
-                    .map(|component| component.as_str())
-                    .collect();
-                modifiers = dynamic_power_set_vec(&mut modifiers, &modifier);
+                tokens.push(
+                    component
+                        .into_inner()
+                        .map(|component| Token::Modifier(component.as_str().to_string()))
+                        .collect(),
+                );
             }
 
             Rule::modifier_omit_range => {
-                let modifier: Vec<_> = component
-                    .into_inner()
-                    .map(|component| component.as_str())
-                    .collect();
-                modifiers = dynamic_power_set_vec(&mut modifiers, &modifier);
+                tokens.push(
+                    component
+                        .into_inner()
+                        .map(|component| Token::Modifier(component.as_str().to_string()))
+                        .collect(),
+                );
             }
 
             Rule::range => {
+                let mut keys = vec![];
                 for range_component in component.into_inner() {
                     match range_component.as_rule() {
                         Rule::keybind => {
-                            keysyms.push(range_component.as_str().to_string());
+                            keys.push(Token::Key(range_component.as_str().to_string()));
                         }
                         Rule::key_dashed_range => {
                             let mut bounds = range_component.into_inner();
@@ -84,24 +94,23 @@ fn binding_parser(pair: Pair<'_, Rule>) {
                             }
                             assert!(lower_bound < upper_bound);
 
-                            for key in lower_bound..=upper_bound {
-                                keysyms.push(key.to_string());
-                            }
+                            keys.extend(
+                                (lower_bound..=upper_bound).map(|key| Token::Key(key.to_string())),
+                            );
                         }
                         _ => {}
                     }
                 }
+                tokens.push(keys);
             }
             Rule::keybind => {
-                keysyms.push(component.as_str().to_string());
+                tokens.push(vec![Token::Key(component.as_str().to_string())]);
             }
             _ => {}
         }
     }
-    println!(
-        "modifier cartesian product: {:#?}, keysyms: {:#?}",
-        modifiers, keysyms
-    );
+    let multi_cartesian_product: Vec<_> = tokens.iter().multi_cartesian_product().collect();
+    println!("multi_cartesian_product: {:#?}", multi_cartesian_product);
 }
 
 fn main() -> Result<()> {
