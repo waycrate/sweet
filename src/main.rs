@@ -16,64 +16,80 @@ pub enum Token {
     Command(String),
 }
 
+fn extract_trigger(component: Pair<'_, Rule>) -> Vec<Token> {
+    match component.as_rule() {
+        Rule::modifier => {
+            vec![Token::Modifier(component.as_str().to_string())]
+        }
+
+        Rule::modifier_range | Rule::modifier_omit_range => component
+            .into_inner()
+            .map(|component| Token::Modifier(component.as_str().to_string()))
+            .collect(),
+        Rule::range => {
+            let mut keys = vec![];
+            for range_component in component.into_inner() {
+                match range_component.as_rule() {
+                    Rule::keybind => {
+                        keys.push(Token::Key(range_component.as_str().to_string()));
+                    }
+                    Rule::key_dashed_range => {
+                        let (lower_bound, upper_bound) = extract_bounds(range_component);
+                        keys.extend(
+                            (lower_bound..=upper_bound).map(|key| Token::Key(key.to_string())),
+                        );
+                    }
+                    _ => {}
+                }
+            }
+            keys
+        }
+        Rule::keybind => {
+            vec![Token::Key(component.as_str().to_string())]
+        }
+
+        _ => vec![],
+    }
+}
+
+fn unbind_parser(pair: Pair<'_, Rule>) {
+    let mut unbind = vec![];
+    for component in pair.into_inner() {
+        unbind.push(extract_trigger(component));
+    }
+    let unbind_cartesian_product: Vec<_> = unbind.iter().multi_cartesian_product().collect();
+    for trigger_to_unbind in unbind_cartesian_product {
+        println!("unbind: {:?}", trigger_to_unbind);
+    }
+}
+
+fn extract_bounds(pair: Pair<'_, Rule>) -> (char, char) {
+    let mut bounds = pair.into_inner();
+    let lower_bound: char = bounds
+        .next()
+        .unwrap()
+        .as_str()
+        .parse()
+        .expect("failed to parse lower bound");
+    let upper_bound: char = bounds
+        .next()
+        .unwrap()
+        .as_str()
+        .parse()
+        .expect("failed to parse upper bound");
+
+    if !lower_bound.is_ascii() || !upper_bound.is_ascii() {
+        panic!("lower and upper bounds are not ascii");
+    }
+    assert!(lower_bound < upper_bound);
+    (lower_bound, upper_bound)
+}
+
 fn binding_parser(pair: Pair<'_, Rule>) {
     let mut tokens = vec![];
     let mut comm = vec![];
     for component in pair.into_inner() {
         match component.as_rule() {
-            Rule::modifier => {
-                tokens.push(vec![Token::Modifier(component.as_str().to_string())]);
-            }
-
-            Rule::modifier_range | Rule::modifier_omit_range => {
-                tokens.push(
-                    component
-                        .into_inner()
-                        .map(|component| Token::Modifier(component.as_str().to_string()))
-                        .collect(),
-                );
-            }
-
-            Rule::range => {
-                let mut keys = vec![];
-                for range_component in component.into_inner() {
-                    match range_component.as_rule() {
-                        Rule::keybind => {
-                            keys.push(Token::Key(range_component.as_str().to_string()));
-                        }
-                        Rule::key_dashed_range => {
-                            let mut bounds = range_component.into_inner();
-                            let lower_bound: char = bounds
-                                .next()
-                                .unwrap()
-                                .as_str()
-                                .parse()
-                                .expect("failed to parse lower bound");
-                            let upper_bound: char = bounds
-                                .next()
-                                .unwrap()
-                                .as_str()
-                                .parse()
-                                .expect("failed to parse upper bound");
-
-                            if !lower_bound.is_ascii() || !upper_bound.is_ascii() {
-                                eprintln!("lower and upper bounds are not ascii");
-                                return;
-                            }
-                            assert!(lower_bound < upper_bound);
-
-                            keys.extend(
-                                (lower_bound..=upper_bound).map(|key| Token::Key(key.to_string())),
-                            );
-                        }
-                        _ => {}
-                    }
-                }
-                tokens.push(keys);
-            }
-            Rule::keybind => {
-                tokens.push(vec![Token::Key(component.as_str().to_string())]);
-            }
             Rule::command => {
                 for subcomponent in component.into_inner() {
                     match subcomponent.as_rule() {
@@ -88,26 +104,7 @@ fn binding_parser(pair: Pair<'_, Rule>) {
                                     Rule::command_component => command_variants
                                         .push(Token::Command(thing.as_str().to_string())),
                                     Rule::dashed_range => {
-                                        let mut bounds = thing.into_inner();
-                                        let lower_bound: char = bounds
-                                            .next()
-                                            .unwrap()
-                                            .as_str()
-                                            .parse()
-                                            .expect("failed to parse lower bound");
-                                        let upper_bound: char = bounds
-                                            .next()
-                                            .unwrap()
-                                            .as_str()
-                                            .parse()
-                                            .expect("failed to parse upper bound");
-
-                                        if !lower_bound.is_ascii() || !upper_bound.is_ascii() {
-                                            eprintln!("lower and upper bounds are not ascii");
-                                            return;
-                                        }
-                                        assert!(lower_bound < upper_bound);
-
+                                        let (lower_bound, upper_bound) = extract_bounds(thing);
                                         command_variants.extend(
                                             (lower_bound..=upper_bound)
                                                 .map(|key| Token::Command(key.to_string())),
@@ -122,7 +119,12 @@ fn binding_parser(pair: Pair<'_, Rule>) {
                     }
                 }
             }
-            _ => {}
+            _ => {
+                let trigger = extract_trigger(component);
+                if !trigger.is_empty() {
+                    tokens.push(trigger);
+                }
+            }
         }
     }
     let bind_cartesian_product: Vec<_> = tokens.iter().multi_cartesian_product().collect();
@@ -153,10 +155,19 @@ fn main() -> Result<()> {
     let parse_result = SwhkdParser::parse(Rule::main, &raw_content)?;
     for content in parse_result {
         for decl in content
+            .clone()
             .into_inner()
             .filter(|decl| decl.as_rule() == Rule::binding)
         {
             binding_parser(decl);
+            println!("-----");
+        }
+
+        for decl in content
+            .into_inner()
+            .filter(|decl| decl.as_rule() == Rule::unbind)
+        {
+            unbind_parser(decl);
             println!("-----");
         }
     }

@@ -1,6 +1,7 @@
 {super, alt} + {ctrl, shift} + {a, b}
 	{librewolf, firefox} {spoiderman, betmen} {play, pause}
 
+ignore {super, alt} + {ctrl, shift} + {a, b}
 # Try this case where the number of variants the binding can
 # take on does not equal the number of variants the command
 # can take on

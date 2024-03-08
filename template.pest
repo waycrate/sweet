@@ -50,13 +50,16 @@ inside_braces      =  _{ (command_component ~ command_component_and+) | (dashed_
 command_with_brace =  { "{" ~ inside_braces ~ "}" }
 command            = ${ NEWLINE ~ WHITESPACE+ ~ (command_with_brace | command_component)* }
 
+trigger = _{(modifier_or_range | modifier_omit_range)* ~ (keybind | range)}
+
 binding = {
-    ((modifier_or_range | modifier_omit_range)* ~ (keybind | range)) ~ comment? ~ command
+    trigger ~ comment? ~ command
 }
 
-content = _{ comment | binding | NEWLINE }
+unbind = { "ignore" ~ trigger }
+
+content = _{ comment | unbind | binding | NEWLINE }
 
 main = {
     SOI ~ content* ~ EOI
 }
-
