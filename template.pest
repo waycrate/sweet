@@ -12,45 +12,45 @@ escape_lf   = _{ "\\\n" }
 WHITESPACE  = _{ " " | "\t" | escape_lf }
 not_newline = _{ !NEWLINE ~ !escape_lf ~ ANY }
 
-range_deny  = { NEWLINE | "{" | "," | "}" | "-" }
-range_allow = { "\\," | "\\\\" | "\\{" | "\\}" | "\\-" }
+shorthand_deny  = { NEWLINE | "{" | "," | "}" | "-" }
+shorthand_allow = { "\\," | "\\\\" | "\\{" | "\\}" | "\\-" }
 
-keybind_component = _{ !range_deny ~ (range_allow | keybind) }
+keybind_component = _{ !shorthand_deny ~ (shorthand_allow | keybind) }
 
-key_dashed_range    =  { keybind_component ~ "-" ~ keybind_component }
-key_or_dashed_range = _{ key_dashed_range | keybind_component }
+key_range    =  { keybind_component ~ "-" ~ keybind_component }
+key_or_range = _{ key_range | keybind_component }
 
-range = {
-    "{" ~ ((keybind_component ~ "," ~ key_or_dashed_range) | key_dashed_range) ~ ("," ~ key_or_dashed_range)* ~ "}"
+shorthand = {
+    "{" ~ ((keybind_component ~ "," ~ key_or_range) | key_range) ~ ("," ~ key_or_range)* ~ "}"
 }
 
-modifier_in_range = _{ !(NEWLINE | "{" | "," | "}") ~ modifier }
-modifier_range    =  { "{" ~ modifier_in_range ~ ("," ~ modifier_in_range)+ ~ "}" }
+modifier_in_shorthand = _{ !(NEWLINE | "{" | "," | "}") ~ modifier }
+modifier_shorthand    =  { "{" ~ modifier_in_shorthand ~ ("," ~ modifier_in_shorthand)+ ~ "}" }
 
 omission            =  { "_" }
-modifier_omit       = _{ omission | (modifier_in_range ~ concat) }
-modifier_omit_range =  { "{" ~ modifier_omit ~ ("," ~ modifier_omit)* ~ "}" }
+modifier_omit       = _{ omission | (modifier_in_shorthand ~ concat) }
+modifier_omit_shorthand =  { "{" ~ modifier_omit ~ ("," ~ modifier_omit)* ~ "}" }
 
 send                             =  { "~" }
 on_release                       =  { "@" }
 keybind                          =  { send? ~ on_release? ~ key }
-modifier_or_range_without_concat = _{ modifier | modifier_range }
-modifier_or_range                = _{ modifier_or_range_without_concat ~ concat }
+modifier_or_shorthand_without_concat = _{ modifier | modifier_shorthand }
+modifier_or_shorthand                = _{ modifier_or_shorthand_without_concat ~ concat }
 concat                           = _{ "+" }
 
 comment = _{ WHITESPACE* ~ "#" ~ not_newline* }
 
-command_composite     = _{ !range_deny ~ (range_allow | ANY) }
+command_composite     = _{ !shorthand_deny ~ (shorthand_allow | ANY) }
 command_component     =  { command_composite+ }
 visible_composite     =  { command_composite }
-dashed_range          =  { visible_composite ~ WHITESPACE* ~ "-" ~ WHITESPACE* ~ visible_composite }
-command_component_and =  _{ WHITESPACE* ~ "," ~ WHITESPACE* ~ (dashed_range | command_component) }
+range          =  { visible_composite ~ WHITESPACE* ~ "-" ~ WHITESPACE* ~ visible_composite }
+command_component_and =  _{ WHITESPACE* ~ "," ~ WHITESPACE* ~ (range | command_component) }
 
-inside_braces      =  _{ (command_component ~ command_component_and+) | (dashed_range ~ command_component_and*) }
+inside_braces      =  _{ (command_component ~ command_component_and+) | (range ~ command_component_and*) }
 command_with_brace =  { "{" ~ inside_braces ~ "}" }
 command            = ${ NEWLINE ~ WHITESPACE+ ~ (command_with_brace | command_component)* }
 
-trigger = _{(modifier_or_range | modifier_omit_range)* ~ (keybind | range)}
+trigger = _{(modifier_or_shorthand | modifier_omit_shorthand)* ~ (keybind | shorthand)}
 
 binding = {
     trigger ~ comment? ~ command
