@@ -16,23 +16,28 @@ pub enum Token {
     Command(String),
 }
 
+trait ComponentToString {
+    fn inner_string(&self) -> String;
+}
+
+impl ComponentToString for Pair<'_, Rule> {
+    fn inner_string(&self) -> String {
+        self.as_str().to_string()
+    }
+}
+
 fn extract_trigger(component: Pair<'_, Rule>) -> Vec<Token> {
     match component.as_rule() {
-        Rule::modifier => {
-            vec![Token::Modifier(component.as_str().to_string())]
-        }
-
+        Rule::modifier => vec![Token::Modifier(component.inner_string())],
         Rule::modifier_shorthand | Rule::modifier_omit_shorthand => component
             .into_inner()
-            .map(|component| Token::Modifier(component.as_str().to_string()))
+            .map(|component| Token::Modifier(component.inner_string()))
             .collect(),
         Rule::shorthand => {
             let mut keys = vec![];
             for shorthand_component in component.into_inner() {
                 match shorthand_component.as_rule() {
-                    Rule::keybind => {
-                        keys.push(Token::Key(shorthand_component.as_str().to_string()));
-                    }
+                    Rule::keybind => keys.push(Token::Key(shorthand_component.inner_string())),
                     Rule::key_range => {
                         let (lower_bound, upper_bound) = extract_bounds(shorthand_component);
                         keys.extend(
@@ -44,10 +49,7 @@ fn extract_trigger(component: Pair<'_, Rule>) -> Vec<Token> {
             }
             keys
         }
-        Rule::keybind => {
-            vec![Token::Key(component.as_str().to_string())]
-        }
-
+        Rule::keybind => vec![Token::Key(component.inner_string())],
         _ => vec![],
     }
 }
@@ -67,7 +69,7 @@ fn import_parser(pair: Pair<'_, Rule>) {
     let mut imports = vec![];
     for component in pair.into_inner() {
         match component.as_rule() {
-            Rule::import_file => imports.push(component.as_str().to_string()),
+            Rule::import_file => imports.push(component.inner_string()),
             _ => unreachable!(),
         }
     }
@@ -102,13 +104,13 @@ fn extract_bounds(pair: Pair<'_, Rule>) -> (char, char) {
 fn parse_command_shorthand(pair: Pair<'_, Rule>) -> Vec<Token> {
     let mut command_variants = vec![];
 
-    for thing in pair.into_inner() {
-        match thing.as_rule() {
+    for component in pair.into_inner() {
+        match component.as_rule() {
             Rule::command_component => {
-                command_variants.push(Token::Command(thing.as_str().to_string()))
+                command_variants.push(Token::Command(component.inner_string()))
             }
             Rule::range => {
-                let (lower_bound, upper_bound) = extract_bounds(thing);
+                let (lower_bound, upper_bound) = extract_bounds(component);
                 command_variants
                     .extend((lower_bound..=upper_bound).map(|key| Token::Command(key.to_string())));
             }
@@ -127,7 +129,7 @@ fn binding_parser(pair: Pair<'_, Rule>) {
                 for subcomponent in component.into_inner() {
                     match subcomponent.as_rule() {
                         Rule::command_component => {
-                            comm.push(vec![Token::Command(subcomponent.as_str().to_string())]);
+                            comm.push(vec![Token::Command(subcomponent.inner_string())]);
                         }
                         Rule::command_with_brace => {
                             comm.push(parse_command_shorthand(subcomponent));
@@ -170,32 +172,21 @@ fn main() -> Result<()> {
     };
     let raw_content = fs::read_to_string(arg)?;
     let parse_result = SwhkdParser::parse(Rule::main, &raw_content)?;
-    for content in parse_result {
-        for decl in content
-            .clone()
-            .into_inner()
-            .filter(|decl| decl.as_rule() == Rule::binding)
-        {
-            binding_parser(decl);
-            println!("-----");
-        }
+    let Some(main) = parse_result.into_iter().next() else {
+        bail!("a hotkeys config file must contain one and only one main section");
+    };
 
-        for decl in content
-            .clone()
-            .into_inner()
-            .filter(|decl| decl.as_rule() == Rule::unbind)
-        {
-            unbind_parser(decl);
-            println!("-----");
+    for decl in main.into_inner() {
+        match decl.as_rule() {
+            Rule::binding => binding_parser(decl),
+            Rule::unbind => unbind_parser(decl),
+            Rule::import => import_parser(decl),
+            // End of identifier
+            // Here, it means the end of the file.
+            Rule::EOI => {}
+            _ => unreachable!(),
         }
-
-        for decl in content
-            .into_inner()
-            .filter(|decl| decl.as_rule() == Rule::import)
-        {
-            import_parser(decl);
-            println!("-----");
-        }
+        println!("-----");
     }
     Ok(())
 }
