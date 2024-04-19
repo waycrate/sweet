@@ -58,7 +58,10 @@ binding = {
 
 unbind = { "ignore" ~ trigger }
 
-content = _{ comment | unbind | binding | NEWLINE }
+import_file = {(!NEWLINE ~ ANY)+}
+import = { "include" ~ import_file }
+
+content = _{ comment | unbind | binding | import | NEWLINE }
 
 main = {
     SOI ~ content* ~ EOI

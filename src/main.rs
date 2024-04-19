@@ -63,6 +63,20 @@ fn unbind_parser(pair: Pair<'_, Rule>) {
     }
 }
 
+fn import_parser(pair: Pair<'_, Rule>) {
+    let mut imports = vec![];
+    for component in pair.into_inner() {
+        match component.as_rule() {
+            Rule::import_file => imports.push(component.as_str().to_string()),
+            _ => unreachable!(),
+        }
+    }
+
+    for import in imports {
+        println!("import: {}", import);
+    }
+}
+
 fn extract_bounds(pair: Pair<'_, Rule>) -> (char, char) {
     let mut bounds = pair.into_inner();
     let lower_bound: char = bounds
@@ -167,10 +181,19 @@ fn main() -> Result<()> {
         }
 
         for decl in content
+            .clone()
             .into_inner()
             .filter(|decl| decl.as_rule() == Rule::unbind)
         {
             unbind_parser(decl);
+            println!("-----");
+        }
+
+        for decl in content
+            .into_inner()
+            .filter(|decl| decl.as_rule() == Rule::import)
+        {
+            import_parser(decl);
             println!("-----");
         }
     }
