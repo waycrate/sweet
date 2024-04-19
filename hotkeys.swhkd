@@ -1,6 +1,7 @@
 {super, alt} + {ctrl, shift} + {a, b}
 	{librewolf, firefox} {spoiderman, betmen} {play, pause}
 
+include ./modules/other.swhkd
 ignore {super, alt} + {ctrl, shift} + {a, b}
 # Try this case where the number of variants the binding can
 # take on does not equal the number of variants the command
@@ -25,8 +26,8 @@ ignore {super, alt} + {ctrl, shift} + {a, b}
 # {super, alt} + {a, b}
 # 	{librewolf, firefox} {spoiderman, betmen}
 
-# super + a
-#  asd foo
+super + a
+ asd foo
 
 # super + {_, shift +} {a-z}
 #  asd {g-z,foo,bar,baz}
