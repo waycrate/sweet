@@ -1,18 +1,25 @@
-// TODO: Add the full sets
 modifier = {
-    ^"super"
-  | ^"ctrl"
-  | ^"alt"
-  | ^"shift"
+    ^"alt"
+    | ^"altgr"
+    | ^"control"
+    | ^"ctrl"
+    | ^"mod1"
+    | ^"mod4"
+    | ^"mod5"
+    | ^"shift"
+    | ^"super"
+    | ^"any"
 }
 
+// TODO: add all valid keys here
 key = { ^"enter" | ^"return" | ASCII_ALPHANUMERIC }
 
-escape_lf   = _{ "\\\n" }
-WHITESPACE  = _{ " " | "\t" | escape_lf }
-not_newline = _{ !NEWLINE ~ !escape_lf ~ ANY }
+escape_lf        = _{ "\\\n" }
+WHITESPACE       = _{ " " | "\t" | escape_lf }
+not_newline      = _{ !NEWLINE ~ !escape_lf ~ ANY }
+shorthand_bounds =  { "{" | "}" }
 
-shorthand_deny  = { NEWLINE | "{" | "," | "}" | "-" }
+shorthand_deny  = { NEWLINE | shorthand_bounds | "," | "-" }
 shorthand_allow = { "\\," | "\\\\" | "\\{" | "\\}" | "\\-" }
 
 keybind_component = _{ !shorthand_deny ~ (shorthand_allow | keybind) }
@@ -24,44 +31,61 @@ shorthand = {
     "{" ~ ((keybind_component ~ "," ~ key_or_range) | key_range) ~ ("," ~ key_or_range)* ~ "}"
 }
 
-modifier_in_shorthand = _{ !(NEWLINE | "{" | "," | "}") ~ modifier }
-modifier_shorthand    =  { "{" ~ modifier_in_shorthand ~ ("," ~ modifier_in_shorthand)+ ~ "}" }
+// no dashes accepted, no dashes needed
+// one would not expect the range "super-alt" to work anyway.
+modifier_in_shorthand = _{ !shorthand_deny ~ modifier }
+modifier_shorthand    =  { "{" ~ (modifier_in_shorthand ~ ",")+ ~ modifier_in_shorthand ~ "}" }
 
-omission            =  { "_" }
-modifier_omit       = _{ omission | (modifier_in_shorthand ~ concat) }
-modifier_omit_shorthand =  { "{" ~ modifier_omit ~ ("," ~ modifier_omit)* ~ "}" }
+omission                =  { "_" }
+modifier_omit           = _{ omission | (modifier_in_shorthand ~ concat) }
+modifier_omit_shorthand =  { "{" ~ modifier_omit ~ ("," ~ modifier_omit)+ ~ "}" }
 
-send                             =  { "~" }
-on_release                       =  { "@" }
-keybind                          =  { send? ~ on_release? ~ key }
+send                                 =  { "~" }
+on_release                           =  { "@" }
+concat                               = _{ "+" }
+keybind                              =  { send? ~ on_release? ~ key }
 modifier_or_shorthand_without_concat = _{ modifier | modifier_shorthand }
 modifier_or_shorthand                = _{ modifier_or_shorthand_without_concat ~ concat }
-concat                           = _{ "+" }
 
 comment = _{ WHITESPACE* ~ "#" ~ not_newline* }
 
 command_composite     = _{ !shorthand_deny ~ (shorthand_allow | ANY) }
 command_component     =  { command_composite+ }
 visible_composite     =  { command_composite }
-range          =  { visible_composite ~ WHITESPACE* ~ "-" ~ WHITESPACE* ~ visible_composite }
-command_component_and =  _{ WHITESPACE* ~ "," ~ WHITESPACE* ~ (range | command_component) }
+range                 =  { visible_composite ~ WHITESPACE* ~ "-" ~ WHITESPACE* ~ visible_composite }
+command_component_and = _{ WHITESPACE* ~ "," ~ WHITESPACE* ~ (range | command_component) }
 
-inside_braces      =  _{ (command_component ~ command_component_and+) | (range ~ command_component_and*) }
-command_with_brace =  { "{" ~ inside_braces ~ "}" }
-command            = ${ NEWLINE ~ WHITESPACE+ ~ (command_with_brace | command_component)* }
+inside_braces      = _{ (command_component ~ command_component_and+) | (range ~ command_component_and*) }
+command_shorthand =  { "{" ~ inside_braces ~ "}" }
 
-trigger = _{(modifier_or_shorthand | modifier_omit_shorthand)* ~ (keybind | shorthand)}
+// make sure that a standalone part of a command does not overlap with
+// parts inside braces
+command_standalone = { (!shorthand_bounds ~ not_newline)+ }
+
+// the dollar sign makes this atomic, this statement as well as anything
+// inside it must explicitly specify newlines and whitespaces.
+command = ${ NEWLINE ~ WHITESPACE+ ~ (WHITESPACE+ | command_shorthand | command_standalone)* }
+
+trigger = _{ (modifier_or_shorthand | modifier_omit_shorthand)* ~ (keybind | shorthand) }
 
 binding = {
-    trigger ~ comment? ~ command
+    trigger ~ comment? ~ (NEWLINE ~ comment)* ~ command
 }
 
 unbind = { "ignore" ~ trigger }
 
-import_file = {(!NEWLINE ~ ANY)+}
-import = { "include" ~ import_file }
+import_file = { (!NEWLINE ~ ANY)+ }
+import      = { "include" ~ import_file }
 
-content = _{ comment | unbind | binding | import | NEWLINE }
+oneoff              =  { "oneoff" }
+swallow             =  { "swallow" }
+modename_characters = _{ !NEWLINE ~ !(oneoff | swallow) ~ ANY }
+modename            =  { modename_characters+ }
+primitives          = _{ comment | unbind | binding }
+
+mode = { "mode" ~ modename ~ (oneoff | swallow)+ ~ comment? ~ NEWLINE ~ WHITESPACE* ~ (primitives ~ NEWLINE)+ ~ "endmode" }
+
+content = _{ comment | mode | unbind | binding | import | NEWLINE }
 
 main = {
     SOI ~ content* ~ EOI
