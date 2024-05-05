@@ -6,7 +6,9 @@ use thiserror::Error;
 #[derive(Error, Debug)]
 pub enum ParseError {
     #[error("unable to parse grammar from invalid contents")]
-    Grammar(#[from] pest::error::Error<Rule>),
+    // pest::error::Error being 184 bytes makes this entire enum
+    // expensive to copy, hence the box is used to put it on the heap.
+    Grammar(#[from] Box<pest::error::Error<Rule>>),
     #[error("hotkey config must contain one and only one main section")]
     MainSection,
     #[error("shorthand lower bound `{0}` is not an ASCII character")]
@@ -31,7 +33,10 @@ pub struct SwhkdParser {
 
 impl SwhkdParser {
     pub fn from(raw: &str) -> Result<Self, ParseError> {
-        let parse_result = SwhkdGrammar::parse(Rule::main, raw)?;
+        let parse_result = match SwhkdGrammar::parse(Rule::main, raw) {
+            Ok(it) => it,
+            Err(err) => return Err(Box::new(err).into()),
+        };
         let Some(contents) = parse_result.into_iter().next() else {
             return Err(ParseError::MainSection);
         };
@@ -62,27 +67,10 @@ impl SwhkdParser {
 pub enum Token {
     Modifier(String),
     Key(String),
-    Command(String),
 }
 
 #[derive(Debug)]
 pub struct Definition(pub Vec<Token>);
-#[derive(Debug)]
-pub struct Command(pub Vec<Token>);
-impl ToString for Command {
-    fn to_string(&self) -> String {
-        self.0
-            .iter()
-            .filter_map(|t| {
-                if let Token::Command(c) = t {
-                    Some(c)
-                } else {
-                    None
-                }
-            })
-            .join(" ")
-    }
-}
 
 #[derive(Debug)]
 pub struct Binding {
@@ -111,7 +99,10 @@ fn extract_trigger(component: Pair<'_, Rule>) -> Result<Vec<Token>, ParseError> 
             let mut keys = vec![];
             for shorthand_component in component.into_inner() {
                 match shorthand_component.as_rule() {
-                    Rule::keybind => keys.push(Token::Key(shorthand_component.inner_string())),
+                    // TODO: parse send and on_release prefixes
+                    Rule::key_in_shorthand => {
+                        keys.push(Token::Key(shorthand_component.inner_string()))
+                    }
                     Rule::key_range => {
                         let (lower_bound, upper_bound) = extract_bounds(shorthand_component)?;
                         keys.extend(
@@ -123,7 +114,7 @@ fn extract_trigger(component: Pair<'_, Rule>) -> Result<Vec<Token>, ParseError> 
             }
             keys
         }
-        Rule::keybind => vec![Token::Key(component.inner_string())],
+        Rule::key_in_shorthand | Rule::key_normal => vec![Token::Key(component.inner_string())],
         _ => vec![],
     };
     Ok(trigger)
@@ -137,21 +128,17 @@ fn unbind_parser(pair: Pair<'_, Rule>) -> Result<Vec<Definition>, ParseError> {
     let unbinds = unbind
         .into_iter()
         .multi_cartesian_product()
-        .map(|d| Definition(d))
+        .map(Definition)
         .collect();
 
     Ok(unbinds)
 }
 
 fn import_parser(pair: Pair<'_, Rule>) -> Vec<String> {
-    let mut imports = vec![];
-    for component in pair.into_inner() {
-        match component.as_rule() {
-            Rule::import_file => imports.push(component.inner_string()),
-            _ => unreachable!(),
-        }
-    }
-    imports
+    pair.into_inner()
+        .filter(|component| matches!(component.as_rule(), Rule::import_file))
+        .map(|component| component.inner_string())
+        .collect()
 }
 
 fn extract_bounds(pair: Pair<'_, Rule>) -> Result<(char, char), ParseError> {
@@ -185,18 +172,15 @@ fn extract_bounds(pair: Pair<'_, Rule>) -> Result<(char, char), ParseError> {
     Ok((lower_bound, upper_bound))
 }
 
-fn parse_command_shorthand(pair: Pair<'_, Rule>) -> Result<Vec<Token>, ParseError> {
+fn parse_command_shorthand(pair: Pair<'_, Rule>) -> Result<Vec<String>, ParseError> {
     let mut command_variants = vec![];
 
     for component in pair.into_inner() {
         match component.as_rule() {
-            Rule::command_component => {
-                command_variants.push(Token::Command(component.inner_string()))
-            }
+            Rule::command_component => command_variants.push(component.inner_string()),
             Rule::range => {
                 let (lower_bound, upper_bound) = extract_bounds(component)?;
-                command_variants
-                    .extend((lower_bound..=upper_bound).map(|key| Token::Command(key.to_string())));
+                command_variants.extend((lower_bound..=upper_bound).map(|key| key.to_string()));
             }
             _ => {}
         }
@@ -213,7 +197,7 @@ fn binding_parser(pair: Pair<'_, Rule>) -> Result<Vec<Binding>, ParseError> {
                 for subcomponent in component.into_inner() {
                     match subcomponent.as_rule() {
                         Rule::command_standalone => {
-                            comm.push(vec![Token::Command(subcomponent.inner_string())]);
+                            comm.push(vec![subcomponent.inner_string()]);
                         }
                         Rule::command_shorthand => {
                             comm.push(parse_command_shorthand(subcomponent)?);
@@ -233,12 +217,12 @@ fn binding_parser(pair: Pair<'_, Rule>) -> Result<Vec<Binding>, ParseError> {
     let bind_cartesian_product: Vec<_> = tokens
         .into_iter()
         .multi_cartesian_product()
-        .map(|b| Definition(b))
+        .map(Definition)
         .collect();
     let command_cartesian_product: Vec<_> = comm
         .into_iter()
         .multi_cartesian_product()
-        .map(|c| Command(c).to_string())
+        .map(|c| c.join(" "))
         .collect();
     let bind_len = bind_cartesian_product.len();
     let command_len = command_cartesian_product.len();
@@ -249,7 +233,7 @@ fn binding_parser(pair: Pair<'_, Rule>) -> Result<Vec<Binding>, ParseError> {
 
     let bindings = bind_cartesian_product
         .into_iter()
-        .zip(command_cartesian_product.into_iter())
+        .zip(command_cartesian_product)
         .map(|(definition, command)| Binding {
             definition,
             command,
