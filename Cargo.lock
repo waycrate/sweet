@@ -141,17 +141,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "pester"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "itertools",
- "pest",
- "pest_derive",
- "thiserror",
-]
-
-[[package]]
 name = "proc-macro2"
 version = "1.0.78"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -178,6 +167,17 @@ dependencies = [
  "cfg-if",
  "cpufeatures",
  "digest",
+]
+
+[[package]]
+name = "sweet"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "itertools",
+ "pest",
+ "pest_derive",
+ "thiserror",
 ]
 
 [[package]]
