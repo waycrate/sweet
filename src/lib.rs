@@ -69,11 +69,25 @@ pub enum Token {
 pub struct Definition(pub Vec<Token>);
 #[derive(Debug)]
 pub struct Command(pub Vec<Token>);
+impl ToString for Command {
+    fn to_string(&self) -> String {
+        self.0
+            .iter()
+            .filter_map(|t| {
+                if let Token::Command(c) = t {
+                    Some(c)
+                } else {
+                    None
+                }
+            })
+            .join(" ")
+    }
+}
 
 #[derive(Debug)]
 pub struct Binding {
     pub definition: Definition,
-    pub command: Command,
+    pub command: String,
 }
 
 trait ComponentToString {
@@ -198,10 +212,10 @@ fn binding_parser(pair: Pair<'_, Rule>) -> Result<Vec<Binding>, ParseError> {
             Rule::command => {
                 for subcomponent in component.into_inner() {
                     match subcomponent.as_rule() {
-                        Rule::command_component => {
+                        Rule::command_standalone => {
                             comm.push(vec![Token::Command(subcomponent.inner_string())]);
                         }
-                        Rule::command_with_brace => {
+                        Rule::command_shorthand => {
                             comm.push(parse_command_shorthand(subcomponent)?);
                         }
                         _ => {}
@@ -224,7 +238,7 @@ fn binding_parser(pair: Pair<'_, Rule>) -> Result<Vec<Binding>, ParseError> {
     let command_cartesian_product: Vec<_> = comm
         .into_iter()
         .multi_cartesian_product()
-        .map(|c| Command(c))
+        .map(|c| Command(c).to_string())
         .collect();
     let bind_len = bind_cartesian_product.len();
     let command_len = command_cartesian_product.len();
