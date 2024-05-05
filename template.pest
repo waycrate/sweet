@@ -14,6 +14,9 @@ modifier = {
 // TODO: add all valid keys here
 key = { ^"enter" | ^"return" | ASCII_ALPHANUMERIC }
 
+key_normal =  { send? ~ on_release? ~ (key | "," | "-" | shorthand_allow) }
+key_in_shorthand = { !shorthand_deny ~ send? ~ on_release? ~ (shorthand_allow | key) }
+
 escape_lf        = _{ "\\\n" }
 WHITESPACE       = _{ " " | "\t" | escape_lf }
 not_newline      = _{ !NEWLINE ~ !escape_lf ~ ANY }
@@ -22,13 +25,11 @@ shorthand_bounds =  { "{" | "}" }
 shorthand_deny  = { NEWLINE | shorthand_bounds | "," | "-" }
 shorthand_allow = { "\\," | "\\\\" | "\\{" | "\\}" | "\\-" }
 
-keybind_component = _{ !shorthand_deny ~ (shorthand_allow | keybind) }
-
-key_range    =  { keybind_component ~ "-" ~ keybind_component }
-key_or_range = _{ key_range | keybind_component }
+key_range    =  { key_in_shorthand ~ "-" ~ key_in_shorthand }
+key_or_range = _{ key_range | key_in_shorthand }
 
 shorthand = {
-    "{" ~ ((keybind_component ~ "," ~ key_or_range) | key_range) ~ ("," ~ key_or_range)* ~ "}"
+    "{" ~ ((key_in_shorthand ~ "," ~ key_or_range) | key_range) ~ ("," ~ key_or_range)* ~ "}"
 }
 
 // no dashes accepted, no dashes needed
@@ -43,7 +44,6 @@ modifier_omit_shorthand =  { "{" ~ modifier_omit ~ ("," ~ modifier_omit)+ ~ "}" 
 send                                 =  { "~" }
 on_release                           =  { "@" }
 concat                               = _{ "+" }
-keybind                              =  { send? ~ on_release? ~ key }
 modifier_or_shorthand_without_concat = _{ modifier | modifier_shorthand }
 modifier_or_shorthand                = _{ modifier_or_shorthand_without_concat ~ concat }
 
@@ -66,7 +66,7 @@ command_standalone = { (!shorthand_bounds ~ not_newline)+ }
 // inside it must explicitly specify newlines and whitespaces.
 command = ${ NEWLINE ~ WHITESPACE+ ~ (WHITESPACE+ | command_shorthand | command_standalone)* }
 
-trigger = _{ (modifier_or_shorthand | modifier_omit_shorthand)* ~ (keybind | shorthand) }
+trigger = _{ (modifier_or_shorthand | modifier_omit_shorthand)* ~ (key_normal | shorthand) }
 
 binding = {
     trigger ~ comment? ~ (NEWLINE ~ comment)* ~ command
