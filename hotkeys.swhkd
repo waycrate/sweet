@@ -9,6 +9,7 @@ super + {p, \, , \-, \\, r}
 
 super + @a
 	boo
+
 # Try this case where the number of variants the binding can
 # take on does not equal the number of variants the command
 # can take on
@@ -37,9 +38,6 @@ super + a
 
 # super + {_, shift +} {a-z}
 #  asd {g-z,foo,bar,baz}
-
-# super + @a
-#  asd foo
 
 # super + { _, alt + } {a, b}
 # 	{a, b} {c, d}

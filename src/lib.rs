@@ -2,8 +2,9 @@ use itertools::Itertools;
 use pest::{iterators::Pair, Parser};
 use pest_derive::Parser;
 use thiserror::Error;
+// use thiserror::Error;
 
-#[derive(Error, Debug)]
+#[derive(Debug, Error)]
 pub enum ParseError {
     #[error("unable to parse grammar from invalid contents")]
     // pest::error::Error being 184 bytes makes this entire enum
@@ -11,14 +12,6 @@ pub enum ParseError {
     Grammar(#[from] Box<pest::error::Error<Rule>>),
     #[error("hotkey config must contain one and only one main section")]
     MainSection,
-    #[error("shorthand lower bound `{0}` is not an ASCII character")]
-    NonAsciiLowerBound(char),
-    #[error("shorthand upper bound `{0}` is not an ASCII character")]
-    NonAsciiUpperBound(char),
-    #[error("shorthand lower bound `{0}` is greater than upper bound `{1}`")]
-    InvalidBounds(char, char),
-    #[error("the number of possible binding variants {0} does not equal the number of possible command variants {1}.")]
-    UnequalShorthandLengths(usize, usize),
 }
 
 #[derive(Parser)]
@@ -35,7 +28,7 @@ impl SwhkdParser {
     pub fn from(raw: &str) -> Result<Self, ParseError> {
         let parse_result = match SwhkdGrammar::parse(Rule::main, raw) {
             Ok(it) => it,
-            Err(err) => return Err(Box::new(err).into()),
+            Err(err) => return Err(ParseError::Grammar(Box::new(err))),
         };
         let Some(contents) = parse_result.into_iter().next() else {
             return Err(ParseError::MainSection);
@@ -142,7 +135,7 @@ fn import_parser(pair: Pair<'_, Rule>) -> Vec<String> {
 }
 
 fn extract_bounds(pair: Pair<'_, Rule>) -> Result<(char, char), ParseError> {
-    let mut bounds = pair.into_inner();
+    let mut bounds = pair.clone().into_inner();
 
     // These unwraps must always work since the pest grammar picked up
     // the pairs because the lower and upper bounds were present to
@@ -161,13 +154,40 @@ fn extract_bounds(pair: Pair<'_, Rule>) -> Result<(char, char), ParseError> {
         .expect("failed to parse upper bound");
 
     if !lower_bound.is_ascii() {
-        return Err(ParseError::NonAsciiLowerBound(upper_bound));
+        let err = pest::error::Error::new_from_span(
+            pest::error::ErrorVariant::<Rule>::CustomError {
+                message: format!(
+                    "shorthand lower bound `{0}` is not an ASCII character",
+                    lower_bound
+                ),
+            },
+            pair.as_span(),
+        );
+        return Err(Box::new(err).into());
     }
     if !upper_bound.is_ascii() {
-        return Err(ParseError::NonAsciiUpperBound(upper_bound));
+        let err = pest::error::Error::new_from_span(
+            pest::error::ErrorVariant::<Rule>::CustomError {
+                message: format!(
+                    "shorthand upper bound `{0}` is not an ASCII character",
+                    upper_bound
+                ),
+            },
+            pair.as_span(),
+        );
+        return Err(Box::new(err).into());
     }
     if lower_bound > upper_bound {
-        return Err(ParseError::InvalidBounds(lower_bound, upper_bound));
+        let err = pest::error::Error::new_from_span(
+            pest::error::ErrorVariant::<Rule>::CustomError {
+                message: format!(
+                    "shorthand lower bound `{}` is greater than upper bound `{}`",
+                    lower_bound, upper_bound
+                ),
+            },
+            pair.as_span(),
+        );
+        return Err(Box::new(err).into());
     }
     Ok((lower_bound, upper_bound))
 }
@@ -191,7 +211,7 @@ fn parse_command_shorthand(pair: Pair<'_, Rule>) -> Result<Vec<String>, ParseErr
 fn binding_parser(pair: Pair<'_, Rule>) -> Result<Vec<Binding>, ParseError> {
     let mut tokens = vec![];
     let mut comm = vec![];
-    for component in pair.into_inner() {
+    for component in pair.clone().into_inner() {
         match component.as_rule() {
             Rule::command => {
                 for subcomponent in component.into_inner() {
@@ -228,7 +248,16 @@ fn binding_parser(pair: Pair<'_, Rule>) -> Result<Vec<Binding>, ParseError> {
     let command_len = command_cartesian_product.len();
 
     if bind_len != command_len {
-        return Err(ParseError::UnequalShorthandLengths(bind_len, command_len));
+        let err = pest::error::Error::new_from_span(
+            pest::error::ErrorVariant::<Rule>::CustomError {
+                message: format!(
+                    "the number of possible binding variants {0} does not equal the number of possible command variants {1}.",
+                    bind_len, command_len
+                ),
+            },
+            pair.as_span(),
+        );
+        return Err(Box::new(err).into());
     }
 
     let bindings = bind_cartesian_product
