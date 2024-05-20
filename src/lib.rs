@@ -71,22 +71,16 @@ pub struct Binding {
     pub command: String,
 }
 
-trait ComponentToString {
-    fn inner_string(&self) -> String;
-}
-
-impl ComponentToString for Pair<'_, Rule> {
-    fn inner_string(&self) -> String {
-        self.as_str().to_string()
-    }
+fn pair_to_string(pair: Pair<'_, Rule>) -> String {
+    pair.as_str().to_string()
 }
 
 fn extract_trigger(component: Pair<'_, Rule>) -> Result<Vec<Token>, ParseError> {
     let trigger = match component.as_rule() {
-        Rule::modifier => vec![Token::Modifier(component.inner_string())],
+        Rule::modifier => vec![Token::Modifier(pair_to_string(component))],
         Rule::modifier_shorthand | Rule::modifier_omit_shorthand => component
             .into_inner()
-            .map(|component| Token::Modifier(component.inner_string()))
+            .map(|component| Token::Modifier(pair_to_string(component)))
             .collect(),
         Rule::shorthand => {
             let mut keys = vec![];
@@ -94,7 +88,7 @@ fn extract_trigger(component: Pair<'_, Rule>) -> Result<Vec<Token>, ParseError> 
                 match shorthand_component.as_rule() {
                     // TODO: parse send and on_release prefixes
                     Rule::key_in_shorthand => {
-                        keys.push(Token::Key(shorthand_component.inner_string()))
+                        keys.push(Token::Key(pair_to_string(shorthand_component)))
                     }
                     Rule::key_range => {
                         let (lower_bound, upper_bound) = extract_bounds(shorthand_component)?;
@@ -107,7 +101,7 @@ fn extract_trigger(component: Pair<'_, Rule>) -> Result<Vec<Token>, ParseError> 
             }
             keys
         }
-        Rule::key_in_shorthand | Rule::key_normal => vec![Token::Key(component.inner_string())],
+        Rule::key_in_shorthand | Rule::key_normal => vec![Token::Key(pair_to_string(component))],
         _ => vec![],
     };
     Ok(trigger)
@@ -130,7 +124,7 @@ fn unbind_parser(pair: Pair<'_, Rule>) -> Result<Vec<Definition>, ParseError> {
 fn import_parser(pair: Pair<'_, Rule>) -> Vec<String> {
     pair.into_inner()
         .filter(|component| matches!(component.as_rule(), Rule::import_file))
-        .map(|component| component.inner_string())
+        .map(|component| pair_to_string(component))
         .collect()
 }
 
@@ -197,7 +191,7 @@ fn parse_command_shorthand(pair: Pair<'_, Rule>) -> Result<Vec<String>, ParseErr
 
     for component in pair.into_inner() {
         match component.as_rule() {
-            Rule::command_component => command_variants.push(component.inner_string()),
+            Rule::command_component => command_variants.push(pair_to_string(component)),
             Rule::range => {
                 let (lower_bound, upper_bound) = extract_bounds(component)?;
                 command_variants.extend((lower_bound..=upper_bound).map(|key| key.to_string()));
@@ -217,7 +211,7 @@ fn binding_parser(pair: Pair<'_, Rule>) -> Result<Vec<Binding>, ParseError> {
                 for subcomponent in component.into_inner() {
                     match subcomponent.as_rule() {
                         Rule::command_standalone => {
-                            comm.push(vec![subcomponent.inner_string()]);
+                            comm.push(vec![pair_to_string(subcomponent)]);
                         }
                         Rule::command_shorthand => {
                             comm.push(parse_command_shorthand(subcomponent)?);
