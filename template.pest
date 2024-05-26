@@ -64,12 +64,17 @@ command_standalone = { (!shorthand_bounds ~ not_newline)+ }
 
 // the dollar sign makes this atomic, this statement as well as anything
 // inside it must explicitly specify newlines and whitespaces.
-command = ${ NEWLINE ~ WHITESPACE+ ~ (WHITESPACE+ | command_shorthand | command_standalone)* }
+command = ${ (WHITESPACE+ | command_shorthand | command_standalone)* }
 
 trigger = _{ (modifier_or_shorthand | modifier_omit_shorthand)* ~ (key_normal | shorthand) }
 
+maybe_some_lines_of_comments = { (NEWLINE ~ comment)* }
+
 binding = {
-    trigger ~ comment? ~ (NEWLINE ~ comment)* ~ command
+    trigger ~ comment?
+    ~ maybe_some_lines_of_comments
+    ~ NEWLINE
+    ~ command
 }
 
 unbind = { "ignore" ~ trigger }
