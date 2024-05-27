@@ -8,7 +8,10 @@ super + {p, \, , \-, \\, r}
 	{a, b, c, d, e}
 
 super + @a
-	boo
+	echo "🏫"
+
+# super + {1-5}
+# 	lol get rekt
 
 # Try this case where the number of variants the binding can
 # take on does not equal the number of variants the command
