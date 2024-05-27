@@ -43,3 +43,7 @@ examples to try them out!
 ```
 cargo r -- hotkeys.swhkd
 ```
+
+### Contributing
+
+This repo is for cathedral style development. I'm assigned with creating the parser and there's potential financial transactions involved. Contributions are NOT welcome.
