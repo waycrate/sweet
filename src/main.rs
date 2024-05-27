@@ -10,7 +10,7 @@ fn main() -> Result<()> {
     let parser = SwhkdParser::from(&raw_content)?;
 
     for binding in parser.bindings {
-        println!("binding: {:?}", binding);
+        println!("{:?}", binding);
     }
     for unbind in parser.unbinds {
         println!("unbind: {:?}", unbind);
