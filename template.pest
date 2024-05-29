@@ -12,9 +12,10 @@ modifier = {
 }
 
 // TODO: add all valid keys here
-key = { ^"enter" | ^"return" | ASCII_ALPHANUMERIC }
+keys_always_escaped = _{ "\\~" | "\\@" | "\\+" }
+key = { keys_always_escaped | ^"enter" | ^"return" | ASCII_ALPHANUMERIC }
 
-key_normal =  { send? ~ on_release? ~ (key | "," | "-") }
+key_normal =  { send? ~ on_release? ~ (key | "," | "-" ) }
 key_in_shorthand = { !shorthand_deny ~ send? ~ on_release? ~ (shorthand_allow | key) }
 
 escape_lf        = _{ "\\\n" }

@@ -16,13 +16,13 @@ As of now, the parser prints all the bindings that a given inputs file can expan
 
 Here's what has been worked on so far.
 
-- [ ] Bindings
+- [x] Bindings
   - [x] Modifiers
   - [x] Regular keys
   - [x] Shorthands
   - [x] Ranges
   - [x] Omissions
-  - [ ] _Send_ and _on release_ attributes
+  - [x] _Send_ and _on release_ attributes
 - [ ] Unbinds
 - [ ] Modes (implemented in the grammar side)
   - [ ] Oneoff

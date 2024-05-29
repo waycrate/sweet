@@ -2,7 +2,6 @@ use itertools::Itertools;
 use pest::{iterators::Pair, Parser};
 use pest_derive::Parser;
 use thiserror::Error;
-// use thiserror::Error;
 
 #[derive(Debug, Error)]
 pub enum ParseError {
@@ -59,7 +58,19 @@ impl SwhkdParser {
 #[derive(Debug, Clone)]
 pub enum Token {
     Modifier(String),
-    Key(String),
+    Key {
+        key: String,
+        attribute: KeyAttribute,
+    },
+}
+
+#[derive(Debug, Clone)]
+#[repr(u8)]
+pub enum KeyAttribute {
+    None,
+    Send,
+    OnRelease,
+    Both,
 }
 
 #[derive(Debug)]
@@ -75,6 +86,26 @@ fn pair_to_string(pair: Pair<'_, Rule>) -> String {
     pair.as_str().to_string()
 }
 
+fn parse_key(component: Pair<'_, Rule>) -> Token {
+    let mut attr = KeyAttribute::None as u8;
+    let mut key = String::default();
+    for inner in component.into_inner() {
+        match inner.as_rule() {
+            Rule::send => attr |= 1,
+            Rule::on_release => attr |= 2,
+            Rule::key => key = pair_to_string(inner),
+            _ => {}
+        }
+    }
+    let attribute = match attr {
+        0 => KeyAttribute::None,
+        1 => KeyAttribute::Send,
+        2 => KeyAttribute::OnRelease,
+        _ => KeyAttribute::Both,
+    };
+    Token::Key { key, attribute }
+}
+
 fn extract_trigger(component: Pair<'_, Rule>) -> Result<Vec<Token>, ParseError> {
     let trigger = match component.as_rule() {
         Rule::modifier => vec![Token::Modifier(pair_to_string(component))],
@@ -87,21 +118,20 @@ fn extract_trigger(component: Pair<'_, Rule>) -> Result<Vec<Token>, ParseError> 
             for shorthand_component in component.into_inner() {
                 match shorthand_component.as_rule() {
                     // TODO: parse send and on_release prefixes
-                    Rule::key_in_shorthand => {
-                        keys.push(Token::Key(pair_to_string(shorthand_component)))
-                    }
+                    Rule::key_in_shorthand => keys.push(parse_key(shorthand_component)),
                     Rule::key_range => {
                         let (lower_bound, upper_bound) = extract_bounds(shorthand_component)?;
-                        keys.extend(
-                            (lower_bound..=upper_bound).map(|key| Token::Key(key.to_string())),
-                        );
+                        keys.extend((lower_bound..=upper_bound).map(|key| Token::Key {
+                            key: key.to_string(),
+                            attribute: KeyAttribute::None,
+                        }));
                     }
                     _ => {}
                 }
             }
             keys
         }
-        Rule::key_in_shorthand | Rule::key_normal => vec![Token::Key(pair_to_string(component))],
+        Rule::key_in_shorthand | Rule::key_normal => vec![parse_key(component)],
         _ => vec![],
     };
     Ok(trigger)
