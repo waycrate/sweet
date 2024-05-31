@@ -2,6 +2,8 @@ use itertools::Itertools;
 use pest::{iterators::Pair, Parser};
 use pest_derive::Parser;
 use thiserror::Error;
+mod token;
+use crate::token::{Key, KeyAttribute, Modifier, Token};
 
 #[derive(Debug, Error)]
 pub enum ParseError {
@@ -57,30 +59,6 @@ impl SwhkdParser {
     }
 }
 
-#[derive(Debug, Clone)]
-pub enum Token {
-    Modifier(Modifier),
-    Key(Key),
-}
-
-#[derive(Debug, Clone)]
-pub struct Modifier(String);
-#[derive(Debug, Clone)]
-pub struct Key {
-    key: String,
-    attribute: KeyAttribute,
-}
-
-bitflags::bitflags! {
-    #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-    pub struct KeyAttribute: u8 {
-        const None = 0b00000000;
-        const Send = 0b00000001;
-        const OnRelease = 0b00000010;
-        const Both = Self::Send.bits() | Self::OnRelease.bits();
-    }
-}
-
 #[derive(Debug)]
 pub struct Definition {
     modifiers: Vec<Modifier>,
@@ -89,23 +67,17 @@ pub struct Definition {
 
 impl TryFrom<Vec<Token>> for Definition {
     type Error = ParseError;
-    fn try_from(value: Vec<Token>) -> Result<Self, Self::Error> {
-        let Some((key, modifiers_wrapped)) = value.split_last() else {
-            // This error is incredibly unlikely since the grammar
-            // picks up the binding definition because the constraints are met.
+    fn try_from(mut value: Vec<Token>) -> Result<Self, Self::Error> {
+        let Some(Token::Key(key)) = value.pop() else {
             return Err(ParseError::Definition);
         };
-        let mut modifiers = vec![];
-        for m in modifiers_wrapped.into_iter() {
-            if let Token::Modifier(modifier) = m {
-                modifiers.push(modifier.clone());
-            } else {
-                return Err(ParseError::Definition);
-            }
-        }
-        let Token::Key(key) = key.clone() else {
-            return Err(ParseError::Definition);
-        };
+        let modifiers = value
+            .into_iter()
+            .filter_map(|m| match m {
+                Token::Modifier(modifier) => Some(modifier),
+                _ => None,
+            })
+            .collect();
         Ok(Definition { modifiers, key })
     }
 }
@@ -120,6 +92,16 @@ fn pair_to_string(pair: Pair<'_, Rule>) -> String {
     pair.as_str().to_string()
 }
 
+fn unescape(s: &str) -> &str {
+    let chars: Vec<_> = s.chars().collect();
+    let ['\\', ch] = &chars[..] else {
+        return s;
+    };
+    // Pest guarantees this for us. Still keeping a bit of sanity check.
+    assert!(matches!(ch, '{' | '}' | ',' | '\\' | '-' | '+' | '~' | '@'));
+    &s[1..]
+}
+
 fn parse_key(component: Pair<'_, Rule>) -> Token {
     let mut attribute = KeyAttribute::None;
     let mut key = String::default();
@@ -127,19 +109,20 @@ fn parse_key(component: Pair<'_, Rule>) -> Token {
         match inner.as_rule() {
             Rule::send => attribute |= KeyAttribute::Send,
             Rule::on_release => attribute |= KeyAttribute::OnRelease,
-            Rule::key => key = pair_to_string(inner),
+            Rule::key_base => key = pair_to_string(inner),
+            Rule::shorthand_allow => key = unescape(inner.as_str()).to_string(),
             _ => {}
         }
     }
-    Token::Key(Key { key, attribute })
+    Token::new_key(key, attribute)
 }
 
 fn extract_trigger(component: Pair<'_, Rule>) -> Result<Vec<Token>, ParseError> {
     let trigger = match component.as_rule() {
-        Rule::modifier => vec![Token::Modifier(Modifier(pair_to_string(component)))],
+        Rule::modifier => vec![Token::new_modifier(pair_to_string(component))],
         Rule::modifier_shorthand | Rule::modifier_omit_shorthand => component
             .into_inner()
-            .map(|component| Token::Modifier(Modifier(pair_to_string(component))))
+            .map(|component| Token::new_modifier(pair_to_string(component)))
             .collect(),
         Rule::shorthand => {
             let mut keys = vec![];
@@ -167,18 +150,13 @@ fn extract_trigger(component: Pair<'_, Rule>) -> Result<Vec<Token>, ParseError> 
 }
 
 fn unbind_parser(pair: Pair<'_, Rule>) -> Result<Vec<Definition>, ParseError> {
-    let mut unbind = vec![];
-    for component in pair.into_inner() {
-        unbind.push(extract_trigger(component)?);
-    }
-    let unbinds = unbind.into_iter().multi_cartesian_product();
-
-    let mut defs = vec![];
-    for unbind in unbinds {
-        defs.push(unbind.try_into()?);
-    }
-
-    Ok(defs)
+    pair.into_inner()
+        .map(extract_trigger)
+        .collect::<Result<Vec<_>, ParseError>>()?
+        .into_iter()
+        .multi_cartesian_product()
+        .map(|u| u.try_into())
+        .collect()
 }
 
 fn import_parser(pair: Pair<'_, Rule>) -> Vec<String> {
