@@ -64,13 +64,14 @@ pub enum Token {
     },
 }
 
-#[derive(Debug, Clone)]
-#[repr(u8)]
-pub enum KeyAttribute {
-    None,
-    Send,
-    OnRelease,
-    Both,
+bitflags::bitflags! {
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+    pub struct KeyAttribute: u8 {
+        const None = 0b00000000;
+        const Send = 0b00000001;
+        const OnRelease = 0b00000010;
+        const Both = Self::Send.bits() | Self::OnRelease.bits();
+    }
 }
 
 #[derive(Debug)]
@@ -87,22 +88,16 @@ fn pair_to_string(pair: Pair<'_, Rule>) -> String {
 }
 
 fn parse_key(component: Pair<'_, Rule>) -> Token {
-    let mut attr = KeyAttribute::None as u8;
+    let mut attribute = KeyAttribute::None;
     let mut key = String::default();
     for inner in component.into_inner() {
         match inner.as_rule() {
-            Rule::send => attr |= 1,
-            Rule::on_release => attr |= 2,
+            Rule::send => attribute |= KeyAttribute::Send,
+            Rule::on_release => attribute |= KeyAttribute::OnRelease,
             Rule::key => key = pair_to_string(inner),
             _ => {}
         }
     }
-    let attribute = match attr {
-        0 => KeyAttribute::None,
-        1 => KeyAttribute::Send,
-        2 => KeyAttribute::OnRelease,
-        _ => KeyAttribute::Both,
-    };
     Token::Key { key, attribute }
 }
 
@@ -117,7 +112,6 @@ fn extract_trigger(component: Pair<'_, Rule>) -> Result<Vec<Token>, ParseError> 
             let mut keys = vec![];
             for shorthand_component in component.into_inner() {
                 match shorthand_component.as_rule() {
-                    // TODO: parse send and on_release prefixes
                     Rule::key_in_shorthand => keys.push(parse_key(shorthand_component)),
                     Rule::key_range => {
                         let (lower_bound, upper_bound) = extract_bounds(shorthand_component)?;
@@ -162,8 +156,8 @@ fn extract_bounds(pair: Pair<'_, Rule>) -> Result<(char, char), ParseError> {
     let mut bounds = pair.clone().into_inner();
 
     // These unwraps must always work since the pest grammar picked up
-    // the pairs because the lower and upper bounds were present to
-    // begin with. These should not be categorized as errors.
+    // the pairs due to the presence of the lower and upper bounds.
+    // These should not be categorized as errors.
     let lower_bound: char = bounds
         .next()
         .unwrap()
