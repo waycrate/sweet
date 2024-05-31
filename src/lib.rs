@@ -11,6 +11,10 @@ pub enum ParseError {
     Grammar(#[from] Box<pest::error::Error<Rule>>),
     #[error("hotkey config must contain one and only one main section")]
     MainSection,
+    #[error(
+        "binding definitions must have a trailing regular key prefixed by one or more modifiers"
+    )]
+    Definition,
 }
 
 #[derive(Parser)]
@@ -25,10 +29,8 @@ pub struct SwhkdParser {
 
 impl SwhkdParser {
     pub fn from(raw: &str) -> Result<Self, ParseError> {
-        let parse_result = match SwhkdGrammar::parse(Rule::main, raw) {
-            Ok(it) => it,
-            Err(err) => return Err(ParseError::Grammar(Box::new(err))),
-        };
+        let parse_result = SwhkdGrammar::parse(Rule::main, raw)
+            .map_err(|err| ParseError::Grammar(Box::new(err)))?;
         let Some(contents) = parse_result.into_iter().next() else {
             return Err(ParseError::MainSection);
         };
@@ -57,11 +59,16 @@ impl SwhkdParser {
 
 #[derive(Debug, Clone)]
 pub enum Token {
-    Modifier(String),
-    Key {
-        key: String,
-        attribute: KeyAttribute,
-    },
+    Modifier(Modifier),
+    Key(Key),
+}
+
+#[derive(Debug, Clone)]
+pub struct Modifier(String);
+#[derive(Debug, Clone)]
+pub struct Key {
+    key: String,
+    attribute: KeyAttribute,
 }
 
 bitflags::bitflags! {
@@ -75,7 +82,33 @@ bitflags::bitflags! {
 }
 
 #[derive(Debug)]
-pub struct Definition(pub Vec<Token>);
+pub struct Definition {
+    modifiers: Vec<Modifier>,
+    key: Key,
+}
+
+impl TryFrom<Vec<Token>> for Definition {
+    type Error = ParseError;
+    fn try_from(value: Vec<Token>) -> Result<Self, Self::Error> {
+        let Some((key, modifiers_wrapped)) = value.split_last() else {
+            // This error is incredibly unlikely since the grammar
+            // picks up the binding definition because the constraints are met.
+            return Err(ParseError::Definition);
+        };
+        let mut modifiers = vec![];
+        for m in modifiers_wrapped.into_iter() {
+            if let Token::Modifier(modifier) = m {
+                modifiers.push(modifier.clone());
+            } else {
+                return Err(ParseError::Definition);
+            }
+        }
+        let Token::Key(key) = key.clone() else {
+            return Err(ParseError::Definition);
+        };
+        Ok(Definition { modifiers, key })
+    }
+}
 
 #[derive(Debug)]
 pub struct Binding {
@@ -98,15 +131,15 @@ fn parse_key(component: Pair<'_, Rule>) -> Token {
             _ => {}
         }
     }
-    Token::Key { key, attribute }
+    Token::Key(Key { key, attribute })
 }
 
 fn extract_trigger(component: Pair<'_, Rule>) -> Result<Vec<Token>, ParseError> {
     let trigger = match component.as_rule() {
-        Rule::modifier => vec![Token::Modifier(pair_to_string(component))],
+        Rule::modifier => vec![Token::Modifier(Modifier(pair_to_string(component)))],
         Rule::modifier_shorthand | Rule::modifier_omit_shorthand => component
             .into_inner()
-            .map(|component| Token::Modifier(pair_to_string(component)))
+            .map(|component| Token::Modifier(Modifier(pair_to_string(component))))
             .collect(),
         Rule::shorthand => {
             let mut keys = vec![];
@@ -115,9 +148,11 @@ fn extract_trigger(component: Pair<'_, Rule>) -> Result<Vec<Token>, ParseError> 
                     Rule::key_in_shorthand => keys.push(parse_key(shorthand_component)),
                     Rule::key_range => {
                         let (lower_bound, upper_bound) = extract_bounds(shorthand_component)?;
-                        keys.extend((lower_bound..=upper_bound).map(|key| Token::Key {
-                            key: key.to_string(),
-                            attribute: KeyAttribute::None,
+                        keys.extend((lower_bound..=upper_bound).map(|key| {
+                            Token::Key(Key {
+                                key: key.to_string(),
+                                attribute: KeyAttribute::None,
+                            })
                         }));
                     }
                     _ => {}
@@ -136,13 +171,14 @@ fn unbind_parser(pair: Pair<'_, Rule>) -> Result<Vec<Definition>, ParseError> {
     for component in pair.into_inner() {
         unbind.push(extract_trigger(component)?);
     }
-    let unbinds = unbind
-        .into_iter()
-        .multi_cartesian_product()
-        .map(Definition)
-        .collect();
+    let unbinds = unbind.into_iter().multi_cartesian_product();
 
-    Ok(unbinds)
+    let mut defs = vec![];
+    for unbind in unbinds {
+        defs.push(unbind.try_into()?);
+    }
+
+    Ok(defs)
 }
 
 fn import_parser(pair: Pair<'_, Rule>) -> Vec<String> {
@@ -255,8 +291,8 @@ fn binding_parser(pair: Pair<'_, Rule>) -> Result<Vec<Binding>, ParseError> {
     let bind_cartesian_product: Vec<_> = tokens
         .into_iter()
         .multi_cartesian_product()
-        .map(Definition)
-        .collect();
+        .map(Definition::try_from)
+        .collect::<Result<Vec<Definition>, ParseError>>()?;
     let command_cartesian_product: Vec<_> = comm
         .into_iter()
         .multi_cartesian_product()
