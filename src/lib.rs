@@ -1,9 +1,11 @@
-use itertools::Itertools;
+use itertools::{iproduct, Itertools};
 use pest::{iterators::Pair, Parser};
 use pest_derive::Parser;
+use range::Bounds;
 use thiserror::Error;
+mod range;
 mod token;
-use crate::token::{Key, KeyAttribute, Modifier, Token};
+use crate::token::{Key, KeyAttribute, Modifier};
 
 #[derive(Debug, Error)]
 pub enum ParseError {
@@ -65,23 +67,6 @@ pub struct Definition {
     key: Key,
 }
 
-impl TryFrom<Vec<Token>> for Definition {
-    type Error = ParseError;
-    fn try_from(mut value: Vec<Token>) -> Result<Self, Self::Error> {
-        let Some(Token::Key(key)) = value.pop() else {
-            return Err(ParseError::Definition);
-        };
-        let modifiers = value
-            .into_iter()
-            .filter_map(|m| match m {
-                Token::Modifier(modifier) => Some(modifier),
-                _ => None,
-            })
-            .collect();
-        Ok(Definition { modifiers, key })
-    }
-}
-
 #[derive(Debug)]
 pub struct Binding {
     pub definition: Definition,
@@ -102,61 +87,76 @@ fn unescape(s: &str) -> &str {
     &s[1..]
 }
 
-fn parse_key(component: Pair<'_, Rule>) -> Token {
+fn parse_key(component: Pair<'_, Rule>) -> Key {
     let mut attribute = KeyAttribute::None;
     let mut key = String::default();
     for inner in component.into_inner() {
         match inner.as_rule() {
             Rule::send => attribute |= KeyAttribute::Send,
             Rule::on_release => attribute |= KeyAttribute::OnRelease,
-            Rule::key_base => key = pair_to_string(inner),
-            Rule::shorthand_allow => key = unescape(inner.as_str()).to_string(),
+            Rule::shorthand_allow | Rule::key_base => key = unescape(inner.as_str()).to_string(),
             _ => {}
         }
     }
-    Token::new_key(key, attribute)
+    Key { key, attribute }
 }
 
-fn extract_trigger(component: Pair<'_, Rule>) -> Result<Vec<Token>, ParseError> {
-    let trigger = match component.as_rule() {
-        Rule::modifier => vec![Token::new_modifier(pair_to_string(component))],
-        Rule::modifier_shorthand | Rule::modifier_omit_shorthand => component
-            .into_inner()
-            .map(|component| Token::new_modifier(pair_to_string(component)))
-            .collect(),
-        Rule::shorthand => {
-            let mut keys = vec![];
-            for shorthand_component in component.into_inner() {
-                match shorthand_component.as_rule() {
-                    Rule::key_in_shorthand => keys.push(parse_key(shorthand_component)),
-                    Rule::key_range => {
-                        let (lower_bound, upper_bound) = extract_bounds(shorthand_component)?;
-                        keys.extend((lower_bound..=upper_bound).map(|key| {
-                            Token::Key(Key {
+#[derive(Default)]
+pub struct DefinitionUncompiled {
+    pub modifiers: Vec<Vec<Modifier>>,
+    pub keys: Vec<Key>,
+}
+
+impl DefinitionUncompiled {
+    fn ingest(&mut self, component: Pair<'_, Rule>) -> Result<(), ParseError> {
+        match component.as_rule() {
+            Rule::modifier => self
+                .modifiers
+                .push(vec![Modifier(pair_to_string(component))]),
+            Rule::modifier_shorthand | Rule::modifier_omit_shorthand => self.modifiers.push(
+                component
+                    .into_inner()
+                    .map(|component| Modifier(pair_to_string(component)))
+                    .collect(),
+            ),
+            Rule::shorthand => {
+                for shorthand_component in component.into_inner() {
+                    match shorthand_component.as_rule() {
+                        Rule::key_in_shorthand => self.keys.push(parse_key(shorthand_component)),
+                        Rule::key_range => {
+                            let (lower_bound, upper_bound) =
+                                Bounds::new(shorthand_component).expand_keys()?;
+                            self.keys.extend((lower_bound..=upper_bound).map(|key| Key {
                                 key: key.to_string(),
                                 attribute: KeyAttribute::None,
-                            })
-                        }));
+                            }));
+                        }
+                        _ => {}
                     }
-                    _ => {}
                 }
             }
-            keys
+            Rule::key_normal => self.keys.push(parse_key(component)),
+            _ => {}
+        };
+        Ok(())
+    }
+
+    fn compile(self) -> Vec<Definition> {
+        let mut defs = vec![];
+        let cartesian = self.modifiers.into_iter().multi_cartesian_product();
+        for (modifiers, key) in iproduct!(cartesian, self.keys) {
+            defs.push(Definition { modifiers, key });
         }
-        Rule::key_in_shorthand | Rule::key_normal => vec![parse_key(component)],
-        _ => vec![],
-    };
-    Ok(trigger)
+        defs
+    }
 }
 
 fn unbind_parser(pair: Pair<'_, Rule>) -> Result<Vec<Definition>, ParseError> {
-    pair.into_inner()
-        .map(extract_trigger)
-        .collect::<Result<Vec<_>, ParseError>>()?
-        .into_iter()
-        .multi_cartesian_product()
-        .map(|u| u.try_into())
-        .collect()
+    let mut uncompiled = DefinitionUncompiled::default();
+    for thing in pair.into_inner() {
+        uncompiled.ingest(thing)?;
+    }
+    Ok(uncompiled.compile())
 }
 
 fn import_parser(pair: Pair<'_, Rule>) -> Vec<String> {
@@ -166,64 +166,6 @@ fn import_parser(pair: Pair<'_, Rule>) -> Vec<String> {
         .collect()
 }
 
-fn extract_bounds(pair: Pair<'_, Rule>) -> Result<(char, char), ParseError> {
-    let mut bounds = pair.clone().into_inner();
-
-    // These unwraps must always work since the pest grammar picked up
-    // the pairs due to the presence of the lower and upper bounds.
-    // These should not be categorized as errors.
-    let lower_bound: char = bounds
-        .next()
-        .unwrap()
-        .as_str()
-        .parse()
-        .expect("failed to parse lower bound");
-    let upper_bound: char = bounds
-        .next()
-        .unwrap()
-        .as_str()
-        .parse()
-        .expect("failed to parse upper bound");
-
-    if !lower_bound.is_ascii() {
-        let err = pest::error::Error::new_from_span(
-            pest::error::ErrorVariant::<Rule>::CustomError {
-                message: format!(
-                    "shorthand lower bound `{0}` is not an ASCII character",
-                    lower_bound
-                ),
-            },
-            pair.as_span(),
-        );
-        return Err(Box::new(err).into());
-    }
-    if !upper_bound.is_ascii() {
-        let err = pest::error::Error::new_from_span(
-            pest::error::ErrorVariant::<Rule>::CustomError {
-                message: format!(
-                    "shorthand upper bound `{0}` is not an ASCII character",
-                    upper_bound
-                ),
-            },
-            pair.as_span(),
-        );
-        return Err(Box::new(err).into());
-    }
-    if lower_bound > upper_bound {
-        let err = pest::error::Error::new_from_span(
-            pest::error::ErrorVariant::<Rule>::CustomError {
-                message: format!(
-                    "shorthand lower bound `{}` is greater than upper bound `{}`",
-                    lower_bound, upper_bound
-                ),
-            },
-            pair.as_span(),
-        );
-        return Err(Box::new(err).into());
-    }
-    Ok((lower_bound, upper_bound))
-}
-
 fn parse_command_shorthand(pair: Pair<'_, Rule>) -> Result<Vec<String>, ParseError> {
     let mut command_variants = vec![];
 
@@ -231,7 +173,7 @@ fn parse_command_shorthand(pair: Pair<'_, Rule>) -> Result<Vec<String>, ParseErr
         match component.as_rule() {
             Rule::command_component => command_variants.push(pair_to_string(component)),
             Rule::range => {
-                let (lower_bound, upper_bound) = extract_bounds(component)?;
+                let (lower_bound, upper_bound) = Bounds::new(component).expand_commands()?;
                 command_variants.extend((lower_bound..=upper_bound).map(|key| key.to_string()));
             }
             _ => {}
@@ -241,8 +183,8 @@ fn parse_command_shorthand(pair: Pair<'_, Rule>) -> Result<Vec<String>, ParseErr
 }
 
 fn binding_parser(pair: Pair<'_, Rule>) -> Result<Vec<Binding>, ParseError> {
-    let mut tokens = vec![];
     let mut comm = vec![];
+    let mut uncompiled = DefinitionUncompiled::default();
     for component in pair.clone().into_inner() {
         match component.as_rule() {
             Rule::command => {
@@ -258,24 +200,15 @@ fn binding_parser(pair: Pair<'_, Rule>) -> Result<Vec<Binding>, ParseError> {
                     }
                 }
             }
-            _ => {
-                let trigger = extract_trigger(component)?;
-                if !trigger.is_empty() {
-                    tokens.push(trigger);
-                }
-            }
+            _ => uncompiled.ingest(component)?,
         }
     }
-    let bind_cartesian_product: Vec<_> = tokens
+    let bind_cartesian_product = uncompiled.compile();
+    let command_cartesian_product = comm
         .into_iter()
         .multi_cartesian_product()
-        .map(Definition::try_from)
-        .collect::<Result<Vec<Definition>, ParseError>>()?;
-    let command_cartesian_product: Vec<_> = comm
-        .into_iter()
-        .multi_cartesian_product()
-        .map(|c| c.join(" "))
-        .collect();
+        .map(|c| c.join(""))
+        .collect_vec();
     let bind_len = bind_cartesian_product.len();
     let command_len = command_cartesian_product.len();
 

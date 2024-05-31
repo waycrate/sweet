@@ -9,30 +9,9 @@ bitflags::bitflags! {
 }
 
 #[derive(Debug, Clone)]
-pub enum Token {
-    Modifier(Modifier),
-    Key(Key),
-}
-
-#[derive(Debug, Clone)]
-pub struct Modifier(String);
+pub struct Modifier(pub String);
 #[derive(Debug, Clone)]
 pub struct Key {
     pub key: String,
     pub attribute: KeyAttribute,
-}
-
-impl Token {
-    pub fn new_key(key: String, attribute: KeyAttribute) -> Self {
-        Self::Key(Key { key, attribute })
-    }
-    pub fn new_key_from_string(key: String) -> Self {
-        Self::Key(Key {
-            key,
-            attribute: KeyAttribute::None,
-        })
-    }
-    pub fn new_modifier(modifier: String) -> Self {
-        Self::Modifier(Modifier(modifier))
-    }
 }
