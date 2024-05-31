@@ -10,6 +10,8 @@ super + {p, \, , \-, \\, r}
 super + @a
 	echo "🏫"
 
+super + {@a-@l}
+   lol {a-l}
 # super + {1-5}
 # 	lol get rekt
 

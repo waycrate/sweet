@@ -1,7 +1,8 @@
-use itertools::{iproduct, Itertools};
+use itertools::Itertools;
 use pest::{iterators::Pair, Parser};
 use pest_derive::Parser;
 use range::Bounds;
+use std::fmt::Display;
 use thiserror::Error;
 mod range;
 mod token;
@@ -15,10 +16,6 @@ pub enum ParseError {
     Grammar(#[from] Box<pest::error::Error<Rule>>),
     #[error("hotkey config must contain one and only one main section")]
     MainSection,
-    #[error(
-        "binding definitions must have a trailing regular key prefixed by one or more modifiers"
-    )]
-    Definition,
 }
 
 #[derive(Parser)]
@@ -67,10 +64,26 @@ pub struct Definition {
     key: Key,
 }
 
+impl Display for Definition {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "[")?;
+        for modifier in self.modifiers.iter() {
+            write!(f, "{:?}, ", modifier)?;
+        }
+        write!(f, "{:?}", self.key)?;
+        write!(f, "]")
+    }
+}
+
 #[derive(Debug)]
 pub struct Binding {
     pub definition: Definition,
     pub command: String,
+}
+impl Display for Binding {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Binding {} \u{2192} {}", self.definition, self.command)
+    }
 }
 
 fn pair_to_string(pair: Pair<'_, Rule>) -> String {
@@ -142,12 +155,12 @@ impl DefinitionUncompiled {
     }
 
     fn compile(self) -> Vec<Definition> {
-        let mut defs = vec![];
-        let cartesian = self.modifiers.into_iter().multi_cartesian_product();
-        for (modifiers, key) in iproduct!(cartesian, self.keys) {
-            defs.push(Definition { modifiers, key });
-        }
-        defs
+        self.modifiers
+            .into_iter()
+            .multi_cartesian_product()
+            .cartesian_product(self.keys)
+            .map(|(modifiers, key)| Definition { modifiers, key })
+            .collect()
     }
 }
 
@@ -162,7 +175,7 @@ fn unbind_parser(pair: Pair<'_, Rule>) -> Result<Vec<Definition>, ParseError> {
 fn import_parser(pair: Pair<'_, Rule>) -> Vec<String> {
     pair.into_inner()
         .filter(|component| matches!(component.as_rule(), Rule::import_file))
-        .map(|component| pair_to_string(component))
+        .map(pair_to_string)
         .collect()
 }
 
@@ -207,7 +220,7 @@ fn binding_parser(pair: Pair<'_, Rule>) -> Result<Vec<Binding>, ParseError> {
     let command_cartesian_product = comm
         .into_iter()
         .multi_cartesian_product()
-        .map(|c| c.join(""))
+        .map(|c| c.join(" "))
         .collect_vec();
     let bind_len = bind_cartesian_product.len();
     let command_len = command_cartesian_product.len();
