@@ -12,7 +12,7 @@ modifier = {
 }
 
 // TODO: add all valid keys here
-keys_always_escaped = _{ "\\~" | "\\@" | "\\+" }
+keys_always_escaped = _{ "\\~" | "\\@" | "\\+" | "\\\\" }
 key_base = { keys_always_escaped | ^"enter" | ^"return" | ASCII_ALPHANUMERIC }
 
 key_attributes = _{ send? ~ on_release? }
@@ -25,7 +25,7 @@ not_newline      = _{ !NEWLINE ~ !escape_lf ~ ANY }
 shorthand_bounds =  { "{" | "}" }
 
 shorthand_deny  = { NEWLINE | shorthand_bounds | "," | "-" }
-shorthand_allow = { "\\," | "\\\\" | "\\{" | "\\}" | "\\-" }
+shorthand_allow = { "\\," | "\\{" | "\\}" | "\\-" }
 
 key_range    =  { key_in_shorthand ~ "-" ~ key_in_shorthand }
 key_or_range = _{ key_range | key_in_shorthand }
