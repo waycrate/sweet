@@ -19,6 +19,9 @@ key_attributes = _{ send? ~ on_release? }
 key_normal =  { key_attributes ~ (key_base | "," | "-") }
 key_in_shorthand = { !shorthand_deny ~ key_attributes ~ (shorthand_allow | key_base) }
 
+send             =  { "~" }
+on_release       =  { "@" }
+concat           = _{ "+" }
 escape_lf        = _{ "\\\n" }
 WHITESPACE       = _{ " " | "\t" | escape_lf }
 not_newline      = _{ !NEWLINE ~ !escape_lf ~ ANY }
@@ -36,18 +39,12 @@ shorthand = {
 
 // no dashes accepted, no dashes needed
 // one would not expect the range "super-alt" to work anyway.
-modifier_in_shorthand = _{ !shorthand_deny ~ modifier }
-modifier_shorthand    =  { "{" ~ (modifier_in_shorthand ~ ",")+ ~ modifier_in_shorthand ~ "}" }
+modifier_shorthand    =  { "{" ~ (modifier ~ ",")+ ~ modifier ~ "}" }
 
 omission                =  { "_" }
-modifier_omit           = _{ omission | (modifier_in_shorthand ~ concat) }
+modifier_omit           = _{ omission | (modifier ~ concat) }
 modifier_omit_shorthand =  { "{" ~ modifier_omit ~ ("," ~ modifier_omit)+ ~ "}" }
-
-send                                 =  { "~" }
-on_release                           =  { "@" }
-concat                               = _{ "+" }
-modifier_or_shorthand_without_concat = _{ modifier | modifier_shorthand }
-modifier_or_shorthand                = _{ modifier_or_shorthand_without_concat ~ concat }
+modifier_or_shorthand                = _{ (modifier | modifier_shorthand) ~ concat }
 
 comment = _{ WHITESPACE* ~ "#" ~ not_newline* }
 
