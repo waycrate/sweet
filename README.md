@@ -23,7 +23,7 @@ Here's what has been worked on so far.
   - [x] Ranges
   - [x] Omissions
   - [x] _Send_ and _on release_ attributes
-- [ ] Unbinds
+- [x] Unbinds
 - [ ] Modes (implemented in the grammar side)
   - [ ] Oneoff
   - [ ] Swallow

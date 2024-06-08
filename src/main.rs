@@ -13,7 +13,7 @@ fn main() -> Result<()> {
         println!("{}", binding);
     }
     for unbind in parser.unbinds {
-        println!("unbind: {:?}", unbind);
+        println!("unbind: {}", unbind);
     }
     for import in parser.imports {
         println!("import: {:?}", import);
