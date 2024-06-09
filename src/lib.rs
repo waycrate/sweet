@@ -22,10 +22,19 @@ pub enum ParseError {
 #[grammar = "template.pest"]
 pub struct SwhkdGrammar;
 
+#[derive(Default, Debug)]
+pub struct Mode {
+    name: String,
+    oneoff: bool,
+    swallow: bool,
+    bindings: Vec<Binding>,
+}
+
 pub struct SwhkdParser {
     pub bindings: Vec<Binding>,
     pub unbinds: Vec<Definition>,
     pub imports: Vec<String>,
+    pub modes: Vec<Mode>,
 }
 
 impl SwhkdParser {
@@ -39,10 +48,12 @@ impl SwhkdParser {
         let mut bindings = vec![];
         let mut unbinds = vec![];
         let mut imports = vec![];
+        let mut modes = vec![];
         for decl in contents.into_inner() {
             match decl.as_rule() {
                 Rule::binding => bindings.extend(binding_parser(decl)?),
                 Rule::unbind => unbinds.extend(unbind_parser(decl)?),
+                Rule::mode => modes.push(mode_parser(decl)?),
                 Rule::import => imports.extend(import_parser(decl)),
                 // End of identifier
                 // Here, it means the end of the file.
@@ -54,6 +65,7 @@ impl SwhkdParser {
             bindings,
             unbinds,
             imports,
+            modes,
         })
     }
 }
@@ -193,6 +205,19 @@ fn parse_command_shorthand(pair: Pair<'_, Rule>) -> Result<Vec<String>, ParseErr
         }
     }
     Ok(command_variants)
+}
+fn mode_parser(pair: Pair<'_, Rule>) -> Result<Mode, ParseError> {
+    let mut mode = Mode::default();
+    for component in pair.into_inner() {
+        match component.as_rule() {
+            Rule::modename => mode.name = component.as_str().to_string(),
+            Rule::binding => mode.bindings.extend(binding_parser(component)?),
+            Rule::oneoff => mode.oneoff = true,
+            Rule::swallow => mode.swallow = true,
+            _ => {}
+        }
+    }
+    Ok(mode)
 }
 
 fn binding_parser(pair: Pair<'_, Rule>) -> Result<Vec<Binding>, ParseError> {

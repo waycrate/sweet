@@ -18,5 +18,8 @@ fn main() -> Result<()> {
     for import in parser.imports {
         println!("import: {:?}", import);
     }
+    for mode in parser.modes {
+        println!("mode: {:?}", mode);
+    }
     Ok(())
 }

@@ -1,6 +1,7 @@
-{super, alt} + {ctrl, shift} + {a, b}
-	{librewolf, firefox} {spoiderman, betmen} {play, pause}
-
+mode lol
+	{super, alt} + {ctrl, shift} + {a, b}
+		{librewolf, firefox} {spoiderman, betmen} {play, pause}
+endmode
 include ./modules/other.swhkd
 ignore {super, alt} + {ctrl, shift} + {a, b}
 

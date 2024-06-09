@@ -24,11 +24,12 @@ Here's what has been worked on so far.
   - [x] Omissions
   - [x] _Send_ and _on release_ attributes
 - [x] Unbinds
-- [ ] Modes (implemented in the grammar side)
-  - [ ] Oneoff
-  - [ ] Swallow
+- [x] Modes
+  - [x] Oneoff
+  - [x] Swallow
 - [x] Comments
 - [ ] Tests (need to port them into proper cargo tests)
+- [ ] Integration into upstream
 
 Want to learn how the code works? Check out [my blog](https://lavafroth.is-a.dev/tags/google-summer-of-code/) where I cover each topic as I implement them.
 
