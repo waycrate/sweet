@@ -5,7 +5,7 @@ use range::Bounds;
 use std::fmt::Display;
 use thiserror::Error;
 mod range;
-mod token;
+pub mod token;
 use crate::token::{Key, KeyAttribute, Modifier};
 
 #[derive(Debug, Error)]
@@ -70,10 +70,10 @@ impl SwhkdParser {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct Definition {
-    modifiers: Vec<Modifier>,
-    key: Key,
+    pub modifiers: Vec<Modifier>,
+    pub key: Key,
 }
 
 impl Display for Definition {
@@ -87,7 +87,7 @@ impl Display for Definition {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct Binding {
     pub definition: Definition,
     pub command: String,
