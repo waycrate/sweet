@@ -167,6 +167,16 @@ impl DefinitionUncompiled {
     }
 
     fn compile(self) -> Vec<Definition> {
+        if self.modifiers.is_empty() {
+            return self
+                .keys
+                .into_iter()
+                .map(|key| Definition {
+                    modifiers: vec![],
+                    key,
+                })
+                .collect();
+        }
         self.modifiers
             .into_iter()
             .multi_cartesian_product()
