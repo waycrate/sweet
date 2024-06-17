@@ -28,8 +28,8 @@ Here's what has been worked on so far.
   - [x] Oneoff
   - [x] Swallow
 - [x] Comments
-- [ ] Tests (need to port them into proper cargo tests)
-- [ ] Integration into upstream
+- [ ] Tests (WIP)
+- [ ] Integration into downstream
 
 Want to learn how the code works? Check out [my blog](https://lavafroth.is-a.dev/tags/google-summer-of-code/) where I cover each topic as I implement them.
 
@@ -38,11 +38,16 @@ Want to learn how the code works? Check out [my blog](https://lavafroth.is-a.dev
 All the examples that are currently tested against are piled up in the
 `hotkeys.swhkd` file. These are to be ported to actual cargo tests.
 
-Feel free to look through the file and uncomment some of the erroneous
-examples to try them out!
+To see a structured representation of the sample config file after parsing, run the following:
 
 ```
 cargo r -- hotkeys.swhkd
+```
+
+To run all available tests (some of which are still being ported), run
+
+```
+cargo test
 ```
 
 ### Contributing
