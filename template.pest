@@ -1,6 +1,6 @@
 modifier = {
-    ^"alt"
-    | ^"altgr"
+    ^"altgr"
+    | ^"alt"
     | ^"control"
     | ^"ctrl"
     | ^"mod1"
