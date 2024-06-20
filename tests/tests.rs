@@ -266,3 +266,102 @@ w
 
     assert!(SwhkdParser::from(&contents).is_err());
 }
+
+#[test]
+fn test_real_config_snippet() -> Result<(), ParseError> {
+    let contents = "
+# reloads sxhkd configuration:
+super + Escape
+    pkill -USR1 -x sxhkd ; sxhkd &
+
+# Launch Terminal
+super + Return
+    alacritty -t \"Terminal\" -e \"$HOME/.config/sxhkd/new_tmux_terminal.sh\"
+
+# terminal emulator (no tmux)
+super + shift + Return
+    alacritty -t \"Terminal\"
+
+# terminal emulator (new tmux session)
+alt + Return
+    alacritty -t \"Terminal\" -e \"tmux\"
+
+ctrl + 0
+    play-song.sh
+
+super + minus
+    play-song.sh album
+                    ";
+    let parsed = SwhkdParser::from(&contents)?;
+
+    let known = vec![
+        Binding {
+            definition: Definition {
+                modifiers: vec![Modifier("super".to_string())],
+                key: Key::new("Escape", KeyAttribute::None),
+            },
+            command: String::from("pkill -USR1 -x sxhkd ; sxhkd &"),
+        },
+        Binding {
+            definition: Definition {
+                modifiers: vec![Modifier("super".to_string())],
+                key: Key::new("Return", KeyAttribute::None),
+            },
+            command: String::from(
+                "alacritty -t \"Terminal\" -e \"$HOME/.config/sxhkd/new_tmux_terminal.sh\"",
+            ),
+        },
+        Binding {
+            definition: Definition {
+                modifiers: vec![Modifier("super".to_string()), Modifier("shift".to_string())],
+                key: Key::new("Return", KeyAttribute::None),
+            },
+            command: String::from("alacritty -t \"Terminal\""),
+        },
+        Binding {
+            definition: Definition {
+                modifiers: vec![Modifier("alt".to_string())],
+                key: Key::new("Return", KeyAttribute::None),
+            },
+            command: String::from("alacritty -t \"Terminal\" -e \"tmux\""),
+        },
+        Binding {
+            definition: Definition {
+                modifiers: vec![Modifier("ctrl".to_string())],
+                key: Key::new("0", KeyAttribute::None),
+            },
+            command: String::from("play-song.sh"),
+        },
+        Binding {
+            definition: Definition {
+                modifiers: vec![Modifier("super".to_string())],
+                key: Key::new("minus", KeyAttribute::None),
+            },
+            command: String::from("play-song.sh album"),
+        },
+    ];
+
+    assert_eq!(parsed.bindings, known);
+    Ok(())
+}
+
+#[test]
+fn test_multiline_command() -> Result<(), ParseError> {
+    let contents = "
+k
+    mpc ls | dmenu | \\
+    sed -i 's/foo/bar/g'
+                    ";
+    let parsed = SwhkdParser::from(&contents)?;
+
+    let known = vec![Binding {
+        definition: Definition {
+            modifiers: vec![],
+            key: Key::new("k", KeyAttribute::None),
+        },
+        command: String::from("mpc ls | dmenu | sed -i 's/foo/bar/g'"),
+    }];
+
+    assert_eq!(parsed.bindings, known);
+    Ok(())
+}
