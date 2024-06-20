@@ -15,3 +15,12 @@ pub struct Key {
     pub key: String,
     pub attribute: KeyAttribute,
 }
+
+impl Key {
+    pub fn new<S: AsRef<str>>(key: S, attribute: KeyAttribute) -> Self {
+        Self {
+            key: key.as_ref().to_owned(),
+            attribute,
+        }
+    }
+}
