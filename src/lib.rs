@@ -255,7 +255,7 @@ fn binding_parser(pair: Pair<'_, Rule>) -> Result<Vec<Binding>, ParseError> {
     let command_cartesian_product = comm
         .into_iter()
         .multi_cartesian_product()
-        .map(|c| c.join(" "))
+        .map(|c| c.join(""))
         .collect_vec();
     let bind_len = bind_cartesian_product.len();
     let command_len = command_cartesian_product.len();
