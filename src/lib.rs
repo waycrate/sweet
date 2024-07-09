@@ -63,8 +63,8 @@ pub enum ConfigReadError {
     ReadingConfig(#[from] std::io::Error),
     #[error("path `{0}` supplied as config is not a regular file")]
     NotRegularFile(PathBuf),
-    #[error("the supplied config file {0} size exceeds the 50MiB limit")]
-    TooLarge(PathBuf),
+    #[error("the supplied config file {0} size exceeds the {1}MiB limit")]
+    TooLarge(PathBuf, u64),
 }
 
 pub fn read_config<P: AsRef<Path>>(path: P) -> Result<String, ConfigReadError> {
@@ -74,9 +74,11 @@ pub fn read_config<P: AsRef<Path>>(path: P) -> Result<String, ConfigReadError> {
         return Err(ConfigReadError::NotRegularFile(path.to_path_buf()));
     }
     let size = stat.size();
-    /* 50MiB size cap */
-    if size > (50 << 20) {
-        return Err(ConfigReadError::TooLarge(path.to_path_buf()));
+    let mib_cap = std::option_env!("FILESIZE_CAP_MIB")
+        .and_then(|cap| cap.parse().ok())
+        .unwrap_or(50);
+    if size > (mib_cap << 20) {
+        return Err(ConfigReadError::TooLarge(path.to_path_buf(), mib_cap));
     }
     // TODO: Use mmap instead of fs::read_to_string
     Ok(fs::read_to_string(path)?)
