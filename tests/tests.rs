@@ -441,6 +441,44 @@ ReTurn
 }
 
 #[test]
+fn test_override() -> Result<(), ParseError> {
+    let contents = "
+super + a
+    1
+super + a
+    2";
+    let known = vec![Binding {
+        definition: Definition {
+            modifiers: vec![Modifier::Super].into_iter().collect(),
+            key: Key::new(evdev::Key::KEY_A, KeyAttribute::None),
+        },
+        command: String::from("2"),
+        mode_instructions: vec![],
+    }];
+    let parsed = SwhkdParser::from(ParserInput::Raw(&contents))?;
+    assert_eq!(parsed.bindings, known);
+    Ok(())
+}
+
+#[test]
+fn test_any_modifier() -> Result<(), ParseError> {
+    let contents = "
+any + a
+    1";
+    let known = vec![Binding {
+        definition: Definition {
+            modifiers: vec![Modifier::Any].into_iter().collect(),
+            key: Key::new(evdev::Key::KEY_A, KeyAttribute::None),
+        },
+        command: String::from("1"),
+        mode_instructions: vec![],
+    }];
+    let parsed = SwhkdParser::from(ParserInput::Raw(&contents))?;
+    assert_eq!(parsed.bindings, known);
+    Ok(())
+}
+
+#[test]
 fn test_duplicate_hotkeys() -> Result<(), ParseError> {
     let contents = "
 super + shift + a
@@ -467,6 +505,60 @@ B
                 key: Key::new(evdev::Key::KEY_B, KeyAttribute::None),
             },
             command: String::from("ts"),
+            mode_instructions: vec![],
+        },
+    ];
+    let parsed = SwhkdParser::from(ParserInput::Raw(&contents))?;
+    assert_eq!(parsed.bindings, known);
+    Ok(())
+}
+
+#[test]
+fn test_range_syntax_not_ascii() {
+    let contents = "
+super + {a-是}
+    {firefox, brave}
+    ";
+    assert_grammar_error_at(contents, (2, 12));
+}
+
+#[test]
+fn test_range_syntax_invalid_range() {
+    let contents = "
+super + {bc-ad}
+    {firefox, brave}
+    ";
+    assert_grammar_error_at(contents, (2, 10));
+}
+
+#[test]
+fn test_ranger_syntax_not_full_range() {
+    let contents = "
+super + {a-}
+    {firefox, brave}";
+    assert_grammar_error_at(contents, (2, 12));
+}
+
+#[test]
+fn test_period_escape_binding() -> Result<(), ParseError> {
+    let contents = "
+super + {\\,, .}
+	riverctl focus-output {previous, next}";
+    let known = vec![
+        Binding {
+            definition: Definition {
+                modifiers: [Modifier::Super].into_iter().collect(),
+                key: Key::new(evdev::Key::KEY_COMMA, KeyAttribute::None),
+            },
+            command: String::from("riverctl focus-output previous"),
+            mode_instructions: vec![],
+        },
+        Binding {
+            definition: Definition {
+                modifiers: [Modifier::Super].into_iter().collect(),
+                key: Key::new(evdev::Key::KEY_DOT, KeyAttribute::None),
+            },
+            command: String::from("riverctl focus-output next"),
             mode_instructions: vec![],
         },
     ];
