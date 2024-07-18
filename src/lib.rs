@@ -43,6 +43,7 @@ pub struct Mode {
     pub unbinds: Vec<Definition>,
 }
 
+#[derive(Debug)]
 pub struct SwhkdParser {
     pub bindings: Vec<Binding>,
     pub unbinds: Vec<Definition>,
@@ -104,13 +105,25 @@ impl SwhkdParser {
             return Err(ParseError::MainSection);
         };
 
-        let mut bindings = vec![];
+        let mut bindings: Vec<Binding> = vec![];
         let mut unbinds = vec![];
         let mut imports = BTreeSet::new();
         let mut modes = vec![];
         for decl in contents.into_inner() {
             match decl.as_rule() {
-                Rule::binding => bindings.extend(binding_parser(decl)?),
+                Rule::binding => {
+                    for binding in binding_parser(decl)? {
+                        if let Some(b) = bindings
+                            .iter_mut()
+                            .find(|b| b.definition == binding.definition)
+                        {
+                            b.command = binding.command;
+                            b.mode_instructions = binding.mode_instructions;
+                        } else {
+                            bindings.push(binding);
+                        }
+                    }
+                }
                 Rule::unbind => unbinds.extend(unbind_parser(decl)?),
                 Rule::mode => modes.push(mode_parser(decl)?),
                 Rule::import => imports.extend(import_parser(decl)),
@@ -142,7 +155,7 @@ impl SwhkdParser {
 
 #[derive(Debug, PartialEq, Eq)]
 pub struct Definition {
-    pub modifiers: Vec<Modifier>,
+    pub modifiers: BTreeSet<Modifier>,
     pub key: Key,
 }
 
@@ -163,6 +176,7 @@ pub struct Binding {
     pub command: String,
     pub mode_instructions: Vec<ModeInstruction>,
 }
+
 impl Display for Binding {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
@@ -259,7 +273,7 @@ impl DefinitionUncompiled {
                 .keys
                 .into_iter()
                 .map(|key| Definition {
-                    modifiers: vec![],
+                    modifiers: BTreeSet::default(),
                     key,
                 })
                 .collect();
@@ -268,7 +282,10 @@ impl DefinitionUncompiled {
             .into_iter()
             .multi_cartesian_product()
             .cartesian_product(self.keys)
-            .map(|(modifiers, key)| Definition { modifiers, key })
+            .map(|(modifiers, key)| Definition {
+                modifiers: modifiers.into_iter().collect(),
+                key,
+            })
             .collect()
     }
 }

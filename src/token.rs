@@ -15,7 +15,7 @@ bitflags::bitflags! {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ModifierRepr(pub String);
 
-#[derive(Debug, PartialEq, Eq, Copy, Clone, Hash)]
+#[derive(Debug, PartialEq, Eq, Copy, Clone, PartialOrd, Ord)]
 pub enum Modifier {
     Super,
     Alt,
