@@ -1,7 +1,18 @@
+use std::collections::BTreeSet;
+
+use pest::error::LineColLocation::Pos;
 use sweet::{
     token::{Key, KeyAttribute, Modifier},
     Binding, Definition, ParseError, ParserInput, SwhkdParser,
 };
+
+fn assert_grammar_error_at(contents: &str, pos: (usize, usize)) {
+    let parse_result = SwhkdParser::from(ParserInput::Raw(contents));
+    let Err(ParseError::Grammar(e)) = parse_result else {
+        panic!("expected grammar parse error")
+    };
+    assert_eq!(e.line_col, Pos(pos));
+}
 
 #[test]
 fn test_basic_keybind() -> Result<(), ParseError> {
@@ -9,7 +20,17 @@ fn test_basic_keybind() -> Result<(), ParseError> {
 r
     alacritty
             ";
-    SwhkdParser::from(ParserInput::Raw(&contents))?;
+    let parsed = SwhkdParser::from(ParserInput::Raw(&contents))?;
+    let known = [Binding {
+        definition: Definition {
+            modifiers: BTreeSet::default(),
+            key: Key::new(evdev::Key::KEY_R, KeyAttribute::None),
+        },
+        command: "alacritty".to_string(),
+        mode_instructions: vec![],
+    }];
+
+    assert_eq!(parsed.bindings, known);
     Ok(())
 }
 
@@ -30,24 +51,27 @@ t
     let known = vec![
         Binding {
             definition: Definition {
-                modifiers: vec![],
+                modifiers: BTreeSet::default(),
                 key: Key::new(evdev::Key::KEY_R, KeyAttribute::None),
             },
-            command: "alacritty".to_string().to_string(),
+            command: "alacritty".to_string(),
+            mode_instructions: vec![],
         },
         Binding {
             definition: Definition {
-                modifiers: vec![],
+                modifiers: BTreeSet::default(),
                 key: Key::new(evdev::Key::KEY_W, KeyAttribute::None),
             },
-            command: "kitty".to_string().to_string(),
+            command: "kitty".to_string(),
+            mode_instructions: vec![],
         },
         Binding {
             definition: Definition {
-                modifiers: vec![],
+                modifiers: BTreeSet::default(),
                 key: Key::new(evdev::Key::KEY_T, KeyAttribute::None),
             },
-            command: "/bin/firefox".to_string().to_string(),
+            command: "/bin/firefox".to_string(),
+            mode_instructions: vec![],
         },
     ];
 
@@ -73,17 +97,19 @@ w
     let known = vec![
         Binding {
             definition: Definition {
-                modifiers: vec![],
+                modifiers: BTreeSet::default(),
                 key: Key::new(evdev::Key::KEY_R, KeyAttribute::None),
             },
-            command: "alacritty".to_string().to_string(),
+            command: "alacritty".to_string(),
+            mode_instructions: vec![],
         },
         Binding {
             definition: Definition {
-                modifiers: vec![],
+                modifiers: BTreeSet::default(),
                 key: Key::new(evdev::Key::KEY_W, KeyAttribute::None),
             },
-            command: "kitty".to_string().to_string(),
+            command: "kitty".to_string(),
+            mode_instructions: vec![],
         },
     ];
 
@@ -102,10 +128,11 @@ super + 5
     let parsed = SwhkdParser::from(ParserInput::Raw(&contents))?;
     let known = vec![Binding {
         definition: Definition {
-            modifiers: vec![Modifier::Super],
+            modifiers: vec![Modifier::Super].into_iter().collect(),
             key: Key::new(evdev::Key::KEY_5, KeyAttribute::None),
         },
-        command: "alacritty".to_string().to_string(),
+        command: "alacritty".to_string(),
+        mode_instructions: vec![],
     }];
 
     assert_eq!(parsed.bindings, known);
@@ -120,7 +147,11 @@ shift + k + m
     notify-send 'Hello world!'
             ";
 
-    assert!(SwhkdParser::from(ParserInput::Raw(&contents)).is_err());
+    let parse_result = SwhkdParser::from(ParserInput::Raw(&contents));
+    let Err(ParseError::Grammar(e)) = parse_result else {
+        panic!("expected grammar parse error")
+    };
+    assert_eq!(e.line_col, Pos((2, 11)));
 }
 
 #[test]
@@ -129,8 +160,7 @@ fn test_modifier_instead_of_keysym() {
 shift + k + alt
     notify-send 'Hello world!'
             ";
-
-    assert!(SwhkdParser::from(ParserInput::Raw(&contents)).is_err());
+    assert_grammar_error_at(&contents, (2, 11));
 }
 
 #[test]
@@ -141,7 +171,7 @@ fn test_unfinished_plus_sign() {
 shift + alt +
     notify-send 'Hello world!'
             ";
-    assert!(SwhkdParser::from(ParserInput::Raw(&contents)).is_err());
+    assert_grammar_error_at(&contents, (4, 14));
 }
 
 #[test]
@@ -150,8 +180,7 @@ fn test_plus_sign_at_start() {
 + shift + k
     notify-send 'Hello world!'
             ";
-
-    assert!(SwhkdParser::from(ParserInput::Raw(&contents)).is_err());
+    assert_grammar_error_at(&contents, (2, 1));
 }
 
 #[test]
@@ -178,38 +207,43 @@ super + z
     let known = vec![
         Binding {
             definition: Definition {
-                modifiers: vec![Modifier::Shift],
+                modifiers: vec![Modifier::Shift].into_iter().collect(),
                 key: Key::new(evdev::Key::KEY_K, KeyAttribute::None),
             },
             command: command.clone(),
+            mode_instructions: vec![],
         },
         Binding {
             definition: Definition {
-                modifiers: vec![Modifier::Control],
+                modifiers: vec![Modifier::Control].into_iter().collect(),
                 key: Key::new(evdev::Key::KEY_5, KeyAttribute::None),
             },
             command: command.clone(),
+            mode_instructions: vec![],
         },
         Binding {
             definition: Definition {
-                modifiers: vec![Modifier::Alt],
+                modifiers: vec![Modifier::Alt].into_iter().collect(),
                 key: Key::new(evdev::Key::KEY_2, KeyAttribute::None),
             },
             command: command.clone(),
+            mode_instructions: vec![],
         },
         Binding {
             definition: Definition {
-                modifiers: vec![Modifier::Altgr],
+                modifiers: vec![Modifier::Altgr].into_iter().collect(),
                 key: Key::new(evdev::Key::KEY_I, KeyAttribute::None),
             },
             command: command.clone(),
+            mode_instructions: vec![],
         },
         Binding {
             definition: Definition {
-                modifiers: vec![Modifier::Super],
+                modifiers: vec![Modifier::Super].into_iter().collect(),
                 key: Key::new(evdev::Key::KEY_Z, KeyAttribute::None),
             },
             command: command.clone(),
+            mode_instructions: vec![],
         },
     ];
 
@@ -228,10 +262,11 @@ p
 
     let known = vec![Binding {
         definition: Definition {
-            modifiers: vec![],
+            modifiers: BTreeSet::default(),
             key: Key::new(evdev::Key::KEY_P, KeyAttribute::None),
         },
         command: String::from("xbacklight -inc 10 -fps 30 -time 200"),
+        mode_instructions: vec![],
     }];
 
     assert_eq!(parsed.bindings, known);
@@ -248,8 +283,7 @@ p
 pesto
     xterm
                     ";
-
-    assert!(SwhkdParser::from(ParserInput::Raw(&contents)).is_err());
+    assert_grammar_error_at(&contents, (5, 2));
 }
 
 #[test]
@@ -297,47 +331,53 @@ super + minus
     let known = vec![
         Binding {
             definition: Definition {
-                modifiers: vec![Modifier::Super],
+                modifiers: vec![Modifier::Super].into_iter().collect(),
                 key: Key::new(evdev::Key::KEY_ESC, KeyAttribute::None),
             },
             command: String::from("pkill -USR1 -x sxhkd ; sxhkd &"),
+            mode_instructions: vec![],
         },
         Binding {
             definition: Definition {
-                modifiers: vec![Modifier::Super],
+                modifiers: vec![Modifier::Super].into_iter().collect(),
                 key: Key::new(evdev::Key::KEY_ENTER, KeyAttribute::None),
             },
             command: String::from(
                 "alacritty -t \"Terminal\" -e \"$HOME/.config/sxhkd/new_tmux_terminal.sh\"",
             ),
+            mode_instructions: vec![],
         },
         Binding {
             definition: Definition {
-                modifiers: vec![Modifier::Super, Modifier::Shift],
+                modifiers: [Modifier::Super, Modifier::Shift].into_iter().collect(),
                 key: Key::new(evdev::Key::KEY_ENTER, KeyAttribute::None),
             },
             command: String::from("alacritty -t \"Terminal\""),
+            mode_instructions: vec![],
         },
         Binding {
             definition: Definition {
-                modifiers: vec![Modifier::Alt],
+                modifiers: [Modifier::Alt].into_iter().collect(),
                 key: Key::new(evdev::Key::KEY_ENTER, KeyAttribute::None),
             },
             command: String::from("alacritty -t \"Terminal\" -e \"tmux\""),
+            mode_instructions: vec![],
         },
         Binding {
             definition: Definition {
-                modifiers: vec![Modifier::Control],
+                modifiers: vec![Modifier::Control].into_iter().collect(),
                 key: Key::new(evdev::Key::KEY_0, KeyAttribute::None),
             },
             command: String::from("play-song.sh"),
+            mode_instructions: vec![],
         },
         Binding {
             definition: Definition {
-                modifiers: vec![Modifier::Super],
+                modifiers: vec![Modifier::Super].into_iter().collect(),
                 key: Key::new(evdev::Key::KEY_MINUS, KeyAttribute::None),
             },
             command: String::from("play-song.sh album"),
+            mode_instructions: vec![],
         },
     ];
 
@@ -356,12 +396,81 @@ k
 
     let known = vec![Binding {
         definition: Definition {
-            modifiers: vec![],
+            modifiers: BTreeSet::default(),
             key: Key::new(evdev::Key::KEY_K, KeyAttribute::None),
         },
         command: String::from("mpc ls | dmenu | sed -i 's/foo/bar/g'"),
+        mode_instructions: vec![],
     }];
 
+    assert_eq!(parsed.bindings, known);
+    Ok(())
+}
+
+#[test]
+fn test_case_insensitive() -> Result<(), ParseError> {
+    let contents = "
+Super + SHIFT + alt + a
+    st
+ReTurn
+    ts
+            ";
+    let known = vec![
+        Binding {
+            definition: Definition {
+                modifiers: vec![Modifier::Super, Modifier::Shift, Modifier::Alt]
+                    .into_iter()
+                    .collect(),
+                key: Key::new(evdev::Key::KEY_A, KeyAttribute::None),
+            },
+            command: String::from("st"),
+            mode_instructions: vec![],
+        },
+        Binding {
+            definition: Definition {
+                modifiers: BTreeSet::default(),
+                key: Key::new(evdev::Key::KEY_ENTER, KeyAttribute::None),
+            },
+            command: String::from("ts"),
+            mode_instructions: vec![],
+        },
+    ];
+    let parsed = SwhkdParser::from(ParserInput::Raw(&contents))?;
+    assert_eq!(parsed.bindings, known);
+    Ok(())
+}
+
+#[test]
+fn test_duplicate_hotkeys() -> Result<(), ParseError> {
+    let contents = "
+super + shift + a
+    st
+shift + suPer +   A
+    ts
+b
+    st
+B
+    ts
+";
+    let known = vec![
+        Binding {
+            definition: Definition {
+                modifiers: vec![Modifier::Super, Modifier::Shift].into_iter().collect(),
+                key: Key::new(evdev::Key::KEY_A, KeyAttribute::None),
+            },
+            command: String::from("ts"),
+            mode_instructions: vec![],
+        },
+        Binding {
+            definition: Definition {
+                modifiers: BTreeSet::default(),
+                key: Key::new(evdev::Key::KEY_B, KeyAttribute::None),
+            },
+            command: String::from("ts"),
+            mode_instructions: vec![],
+        },
+    ];
+    let parsed = SwhkdParser::from(ParserInput::Raw(&contents))?;
     assert_eq!(parsed.bindings, known);
     Ok(())
 }
