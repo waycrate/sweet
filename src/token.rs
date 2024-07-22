@@ -23,6 +23,7 @@ pub enum Modifier {
     Control,
     Shift,
     Any,
+    Omission,
 }
 
 impl From<ModifierRepr> for Modifier {
@@ -37,7 +38,8 @@ impl From<ModifierRepr> for Modifier {
             "mod5" => Modifier::Altgr,
             "shift" => Modifier::Shift,
             "any" => Modifier::Any,
-            _ => panic!("that's not a modifier"),
+            "_" => Modifier::Omission,
+            _ => panic!("{:?} is not a modifier", value),
         }
     }
 }

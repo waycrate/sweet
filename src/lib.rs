@@ -422,7 +422,7 @@ fn binding_parser(pair: Pair<'_, Rule>) -> Result<Vec<Binding>, ParseError> {
         return Err(Box::new(err).into());
     }
 
-    let bindings = bind_cartesian_product
+    let mut bindings: Vec<Binding> = bind_cartesian_product
         .into_iter()
         .zip(command_cartesian_product)
         .map(|(definition, command)| Binding {
@@ -435,5 +435,9 @@ fn binding_parser(pair: Pair<'_, Rule>) -> Result<Vec<Binding>, ParseError> {
                 .collect(),
         })
         .collect();
+
+    for binding in bindings.iter_mut() {
+        binding.definition.modifiers.remove(&Modifier::Omission);
+    }
     Ok(bindings)
 }
