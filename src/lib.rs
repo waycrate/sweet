@@ -145,7 +145,18 @@ impl SwhkdParser {
             }
             let child = Self::as_import(ParserInput::Path(Path::new(&import)), seen)?;
             imports.extend(child.imports);
-            bindings.extend(child.bindings);
+
+            for binding in child.bindings {
+                if let Some(b) = bindings
+                    .iter_mut()
+                    .find(|b| b.definition == binding.definition)
+                {
+                    b.command = binding.command;
+                    b.mode_instructions = binding.mode_instructions;
+                } else {
+                    bindings.push(binding);
+                }
+            }
             unbinds.extend(child.unbinds);
             modes.extend(child.modes);
         }
