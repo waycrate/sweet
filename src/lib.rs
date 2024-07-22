@@ -90,6 +90,11 @@ impl SwhkdParser {
         let mut root_imports = BTreeSet::new();
         let mut root = Self::as_import(input, &mut root_imports)?;
         root.imports = root_imports;
+        for def in root.unbinds.iter() {
+            if let Some(i) = root.bindings.iter().position(|b| b.definition.eq(def)) {
+                root.bindings.remove(i);
+            }
+        }
         Ok(root)
     }
     fn as_import(input: ParserInput, seen: &mut BTreeSet<String>) -> Result<Self, ParseError> {
