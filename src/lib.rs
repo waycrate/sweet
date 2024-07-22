@@ -175,6 +175,15 @@ pub struct Definition {
     pub key: Key,
 }
 
+impl Definition {
+    pub fn new_simple_key(key: evdev::Key) -> Self {
+        Self {
+            modifiers: BTreeSet::default(),
+            key: Key::new(key, KeyAttribute::None),
+        }
+    }
+}
+
 impl Display for Definition {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "[")?;
