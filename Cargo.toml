@@ -15,3 +15,6 @@ itertools = "0.12.1"
 pest = "2.7.7"
 pest_derive = "2.7.7"
 thiserror = "1.0.59"
+
+[dev-dependencies]
+tempfile = "3.10.1"
