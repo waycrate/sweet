@@ -221,14 +221,19 @@ fn pair_to_string(pair: Pair<'_, Rule>) -> String {
     pair.as_str().to_string()
 }
 
-fn unescape(s: &str) -> &str {
-    let chars: Vec<_> = s.chars().collect();
-    let ['\\', ch] = &chars[..] else {
-        return s;
-    };
-    // Pest guarantees this for us. Still keeping a bit of sanity check.
-    assert!(matches!(ch, '{' | '}' | ',' | '\\' | '-' | '+' | '~' | '@'));
-    &s[1..]
+fn unescape(s: &str) -> String {
+    let mut unescaped = String::with_capacity(s.len());
+    let mut was_a_slash = None;
+    for char in s.chars() {
+        match (char, was_a_slash.take()) {
+            ('\\', None) => was_a_slash = Some(()),
+            ('\\', Some(())) => unescaped.push(char),
+            ('{' | '}' | '|' | '-' | '+' | '~' | '@' | ',', Some(())) => unescaped.push(char),
+            (_, Some(())) => {}
+            _ => unescaped.push(char),
+        }
+    }
+    unescaped
 }
 
 fn parse_key(component: Pair<'_, Rule>) -> KeyRepr {
@@ -340,7 +345,9 @@ fn parse_command_shorthand(pair: Pair<'_, Rule>) -> Result<Vec<String>, ParseErr
 
     for component in pair.into_inner() {
         match component.as_rule() {
-            Rule::command_component => command_variants.push(pair_to_string(component)),
+            Rule::command_component => {
+                command_variants.push(unescape(component.as_str()).to_string())
+            }
             Rule::range => {
                 let (lower_bound, upper_bound) = Bounds::new(component).expand_commands()?;
                 command_variants.extend((lower_bound..=upper_bound).map(|key| key.to_string()));
