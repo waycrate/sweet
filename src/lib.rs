@@ -176,11 +176,16 @@ pub struct Definition {
 }
 
 impl Definition {
-    pub fn new_simple_key(key: evdev::Key) -> Self {
+    pub fn new(key: evdev::Key) -> Self {
         Self {
             modifiers: BTreeSet::default(),
             key: Key::new(key, KeyAttribute::None),
         }
+    }
+
+    pub fn with_modifiers(mut self, modifiers: &[Modifier]) -> Self {
+        self.modifiers = modifiers.into_iter().cloned().collect();
+        self
     }
 }
 
