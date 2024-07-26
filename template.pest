@@ -129,7 +129,7 @@ key_base            =  {
   | ASCII_ALPHANUMERIC
 }
 
-key_attributes   = _{ send? ~ on_release? }
+key_attributes   = _{ (send | on_release)* }
 key_normal       =  { key_attributes ~ (key_base | "," | "-") }
 key_in_shorthand =  { !shorthand_deny ~ key_attributes ~ (shorthand_allow | key_base) }
 
