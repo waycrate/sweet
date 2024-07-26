@@ -29,7 +29,7 @@ As of now, the parser prints all the bindings that a given inputs file can expan
 - [x] Comments
 - [x] Imports
   - [x] Merge definitions from all imports
-- [ ] Tests (WIP)
+- [x] Tests
 - [ ] Integration into downstream [WIP](https://github.com/lavafroth/swhkd/tree/sweet-integration)
 
 ## Extra features

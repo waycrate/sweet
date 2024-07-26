@@ -58,8 +58,8 @@ pub enum IoOrParseError {
 
 #[test]
 fn test_load_multiple_config() -> Result<(), IoOrParseError> {
-    let mut setup2 = tempfile::NamedTempFile::new()?;
-    setup2.write_all(
+    let mut import = tempfile::NamedTempFile::new()?;
+    import.write_all(
         b"
 super + c
     hello",
@@ -72,24 +72,56 @@ super + c
 include {}
 super + b
    firefox",
-        setup2.path().display()
+        import.path().display()
     )?;
 
     let parsed = SwhkdParser::from(ParserInput::Path(setup.path()))?;
     let known = [
         Binding {
-            definition: Definition {
-                modifiers: [Modifier::Super].into_iter().collect(),
-                key: Key::new(evdev::Key::KEY_B, KeyAttribute::None),
-            },
+            definition: Definition::new(evdev::Key::KEY_B).with_modifiers(&[Modifier::Super]),
             command: "firefox".to_string(),
             mode_instructions: vec![],
         },
         Binding {
-            definition: Definition {
-                modifiers: [Modifier::Super].into_iter().collect(),
-                key: Key::new(evdev::Key::KEY_C, KeyAttribute::None),
-            },
+            definition: Definition::new(evdev::Key::KEY_C).with_modifiers(&[Modifier::Super]),
+            command: "hello".to_string(),
+            mode_instructions: vec![],
+        },
+    ];
+    assert_eq!(parsed.bindings, known);
+    Ok(())
+}
+
+#[test]
+fn test_relative_import() -> Result<(), IoOrParseError> {
+    // create a temporary file in the working directory
+    // this gets cleaned on a `drop` call
+    let mut setup = tempfile::NamedTempFile::new_in(".")?;
+    setup.write_all(
+        b"
+super + c
+    hello",
+    )?;
+    let mut import = tempfile::NamedTempFile::new()?;
+
+    write!(
+        import,
+        "
+include {}
+super + b
+   firefox",
+        setup.path().display()
+    )?;
+
+    let parsed = SwhkdParser::from(ParserInput::Path(import.path()))?;
+    let known = [
+        Binding {
+            definition: Definition::new(evdev::Key::KEY_B).with_modifiers(&[Modifier::Super]),
+            command: "firefox".to_string(),
+            mode_instructions: vec![],
+        },
+        Binding {
+            definition: Definition::new(evdev::Key::KEY_C).with_modifiers(&[Modifier::Super]),
             command: "hello".to_string(),
             mode_instructions: vec![],
         },
@@ -144,22 +176,22 @@ d
     let parsed = SwhkdParser::from(ParserInput::Path(setup4.path()))?;
     let known = vec![
         Binding {
-            definition: Definition::new_simple_key(evdev::Key::KEY_D),
+            definition: Definition::new(evdev::Key::KEY_D),
             command: "d".to_string(),
             mode_instructions: vec![],
         },
         Binding {
-            definition: Definition::new_simple_key(evdev::Key::KEY_C),
+            definition: Definition::new(evdev::Key::KEY_C),
             command: "c".to_string(),
             mode_instructions: vec![],
         },
         Binding {
-            definition: Definition::new_simple_key(evdev::Key::KEY_B),
+            definition: Definition::new(evdev::Key::KEY_B),
             command: "b".to_string(),
             mode_instructions: vec![],
         },
         Binding {
-            definition: Definition::new_simple_key(evdev::Key::KEY_A),
+            definition: Definition::new(evdev::Key::KEY_A),
             command: "a".to_string(),
             mode_instructions: vec![],
         },
@@ -221,7 +253,7 @@ r
             ";
     let parsed = SwhkdParser::from(ParserInput::Raw(&contents))?;
     let known = [Binding {
-        definition: Definition::new_simple_key(evdev::Key::KEY_R),
+        definition: Definition::new(evdev::Key::KEY_R),
         command: "alacritty".to_string(),
         mode_instructions: vec![],
     }];
@@ -322,6 +354,39 @@ fn test_commented_out_keybind() {
 #w
     gimp";
     assert_grammar_error_at(&contents, (3, 6));
+}
+
+#[test]
+fn test_inline_comment() -> Result<(), IoOrParseError> {
+    let contents = "
+super + a #comment and comment super
+    st
+super + shift + b
+    ts #this comment should be handled by shell
+";
+    let parsed = SwhkdParser::from(ParserInput::Raw(&contents))?;
+    let known = vec![
+        Binding {
+            definition: Definition {
+                modifiers: vec![Modifier::Super].into_iter().collect(),
+                key: Key::new(evdev::Key::KEY_A, KeyAttribute::None),
+            },
+            command: "st".to_string(),
+            mode_instructions: vec![],
+        },
+        Binding {
+            definition: Definition {
+                modifiers: vec![Modifier::Super, Modifier::Shift].into_iter().collect(),
+                key: Key::new(evdev::Key::KEY_B, KeyAttribute::None),
+            },
+            command: "ts #this comment should be handled by shell".to_string(),
+            mode_instructions: vec![],
+        },
+    ];
+
+    assert_eq!(parsed.bindings, known);
+
+    Ok(())
 }
 
 #[test]
@@ -746,26 +811,17 @@ super + {a-c}
     ";
     let known = vec![
         Binding {
-            definition: Definition {
-                modifiers: [Modifier::Super].into_iter().collect(),
-                key: Key::new(evdev::Key::KEY_A, KeyAttribute::None),
-            },
+            definition: Definition::new(evdev::Key::KEY_A).with_modifiers(&[Modifier::Super]),
             command: String::from("firefox"),
             mode_instructions: vec![],
         },
         Binding {
-            definition: Definition {
-                modifiers: [Modifier::Super].into_iter().collect(),
-                key: Key::new(evdev::Key::KEY_B, KeyAttribute::None),
-            },
+            definition: Definition::new(evdev::Key::KEY_B).with_modifiers(&[Modifier::Super]),
             command: String::from("brave"),
             mode_instructions: vec![],
         },
         Binding {
-            definition: Definition {
-                modifiers: [Modifier::Super].into_iter().collect(),
-                key: Key::new(evdev::Key::KEY_C, KeyAttribute::None),
-            },
+            definition: Definition::new(evdev::Key::KEY_C).with_modifiers(&[Modifier::Super]),
             command: String::from("librewolf"),
             mode_instructions: vec![],
         },
@@ -782,6 +838,93 @@ super + {a-是}
     {firefox, brave}
     ";
     assert_grammar_error_at(contents, (2, 12));
+}
+
+#[test]
+// This test differs from the previous iteration,
+// dashes in shorthands will always mean ranges.
+// Thus, they must be escaped.
+fn test_multiple_shorthands() -> Result<(), ParseError> {
+    let contents = r"
+super + {shift,alt} + {c,d}
+    {librewolf, firefox} {\-\-sync, \-\-help}
+            ";
+    let known = vec![
+        Binding {
+            definition: Definition::new(evdev::Key::KEY_C)
+                .with_modifiers(&[Modifier::Super, Modifier::Shift]),
+            command: String::from("librewolf --sync"),
+            mode_instructions: vec![],
+        },
+        Binding {
+            definition: Definition::new(evdev::Key::KEY_D)
+                .with_modifiers(&[Modifier::Super, Modifier::Shift]),
+            command: String::from("librewolf --help"),
+            mode_instructions: vec![],
+        },
+        Binding {
+            definition: Definition::new(evdev::Key::KEY_C)
+                .with_modifiers(&[Modifier::Super, Modifier::Alt]),
+            command: String::from("firefox --sync"),
+            mode_instructions: vec![],
+        },
+        Binding {
+            definition: Definition::new(evdev::Key::KEY_D)
+                .with_modifiers(&[Modifier::Super, Modifier::Alt]),
+            command: String::from("firefox --help"),
+            mode_instructions: vec![],
+        },
+    ];
+    let parsed = SwhkdParser::from(ParserInput::Raw(&contents))?;
+    assert_eq!(parsed.bindings, known);
+    Ok(())
+}
+
+#[test]
+// This test differs from the previous iteration,
+// dashes in shorthands will always mean ranges.
+// Thus, they must be escaped.
+fn test_multiple_ranges() -> Result<(), ParseError> {
+    let contents = r"
+{control,super} + {1-3}
+    {notify\-send, echo} {hello,how,are}
+            ";
+
+    let known = vec![
+        Binding {
+            definition: Definition::new(evdev::Key::KEY_1).with_modifiers(&[Modifier::Control]),
+            command: String::from("notify-send hello"),
+            mode_instructions: vec![],
+        },
+        Binding {
+            definition: Definition::new(evdev::Key::KEY_2).with_modifiers(&[Modifier::Control]),
+            command: String::from("notify-send how"),
+            mode_instructions: vec![],
+        },
+        Binding {
+            definition: Definition::new(evdev::Key::KEY_3).with_modifiers(&[Modifier::Control]),
+            command: String::from("notify-send are"),
+            mode_instructions: vec![],
+        },
+        Binding {
+            definition: Definition::new(evdev::Key::KEY_1).with_modifiers(&[Modifier::Super]),
+            command: String::from("echo hello"),
+            mode_instructions: vec![],
+        },
+        Binding {
+            definition: Definition::new(evdev::Key::KEY_2).with_modifiers(&[Modifier::Super]),
+            command: String::from("echo how"),
+            mode_instructions: vec![],
+        },
+        Binding {
+            definition: Definition::new(evdev::Key::KEY_3).with_modifiers(&[Modifier::Super]),
+            command: String::from("echo are"),
+            mode_instructions: vec![],
+        },
+    ];
+    let parsed = SwhkdParser::from(ParserInput::Raw(&contents))?;
+    assert_eq!(parsed.bindings, known);
+    Ok(())
 }
 
 #[test]
@@ -917,18 +1060,13 @@ super + {_, shift +} b
     {firefox, brave}";
     let known = vec![
         Binding {
-            definition: Definition {
-                modifiers: [Modifier::Super].into_iter().collect(),
-                key: Key::new(evdev::Key::KEY_B, KeyAttribute::None),
-            },
+            definition: Definition::new(evdev::Key::KEY_B).with_modifiers(&[Modifier::Super]),
             command: String::from("firefox"),
             mode_instructions: vec![],
         },
         Binding {
-            definition: Definition {
-                modifiers: [Modifier::Super, Modifier::Shift].into_iter().collect(),
-                key: Key::new(evdev::Key::KEY_B, KeyAttribute::None),
-            },
+            definition: Definition::new(evdev::Key::KEY_B)
+                .with_modifiers(&[Modifier::Super, Modifier::Shift]),
             command: String::from("brave"),
             mode_instructions: vec![],
         },
@@ -1055,23 +1193,310 @@ super + {\\,, .}
 	riverctl focus-output {previous, next}";
     let known = vec![
         Binding {
-            definition: Definition {
-                modifiers: [Modifier::Super].into_iter().collect(),
-                key: Key::new(evdev::Key::KEY_COMMA, KeyAttribute::None),
-            },
+            definition: Definition::new(evdev::Key::KEY_COMMA).with_modifiers(&[Modifier::Super]),
             command: String::from("riverctl focus-output previous"),
             mode_instructions: vec![],
         },
         Binding {
-            definition: Definition {
-                modifiers: [Modifier::Super].into_iter().collect(),
-                key: Key::new(evdev::Key::KEY_DOT, KeyAttribute::None),
-            },
+            definition: Definition::new(evdev::Key::KEY_DOT).with_modifiers(&[Modifier::Super]),
             command: String::from("riverctl focus-output next"),
             mode_instructions: vec![],
         },
     ];
     let parsed = SwhkdParser::from(ParserInput::Raw(&contents))?;
     assert_eq!(parsed.bindings, known);
+    Ok(())
+}
+
+#[test]
+fn test_period_binding() -> Result<(), ParseError> {
+    let contents = "
+super + {comma, period}
+	riverctl focus-output {previous, next}";
+    let known = vec![
+        Binding {
+            definition: Definition::new(evdev::Key::KEY_COMMA).with_modifiers(&[Modifier::Super]),
+            command: String::from("riverctl focus-output previous"),
+            mode_instructions: vec![],
+        },
+        Binding {
+            definition: Definition::new(evdev::Key::KEY_DOT).with_modifiers(&[Modifier::Super]),
+            command: String::from("riverctl focus-output next"),
+            mode_instructions: vec![],
+        },
+    ];
+    let parsed = SwhkdParser::from(ParserInput::Raw(&contents))?;
+    assert_eq!(parsed.bindings, known);
+    Ok(())
+}
+
+#[test]
+fn test_bspwm_multiple_shorthands() -> Result<(), ParseError> {
+    let contents = "
+super + {_,shift + }{h,j,k,l}
+	bspc node -{f,s} {west,south,north,east}";
+    let known = vec![
+        Binding {
+            definition: Definition::new(evdev::Key::KEY_H).with_modifiers(&[Modifier::Super]),
+            command: String::from("bspc node -f west"),
+            mode_instructions: vec![],
+        },
+        Binding {
+            definition: Definition::new(evdev::Key::KEY_J).with_modifiers(&[Modifier::Super]),
+            command: String::from("bspc node -f south"),
+            mode_instructions: vec![],
+        },
+        Binding {
+            definition: Definition::new(evdev::Key::KEY_K).with_modifiers(&[Modifier::Super]),
+            command: String::from("bspc node -f north"),
+            mode_instructions: vec![],
+        },
+        Binding {
+            definition: Definition::new(evdev::Key::KEY_L).with_modifiers(&[Modifier::Super]),
+            command: String::from("bspc node -f east"),
+            mode_instructions: vec![],
+        },
+        Binding {
+            definition: Definition::new(evdev::Key::KEY_H)
+                .with_modifiers(&[Modifier::Super, Modifier::Shift]),
+            command: String::from("bspc node -s west"),
+            mode_instructions: vec![],
+        },
+        Binding {
+            definition: Definition::new(evdev::Key::KEY_J)
+                .with_modifiers(&[Modifier::Super, Modifier::Shift]),
+            command: String::from("bspc node -s south"),
+            mode_instructions: vec![],
+        },
+        Binding {
+            definition: Definition::new(evdev::Key::KEY_K)
+                .with_modifiers(&[Modifier::Super, Modifier::Shift]),
+            command: String::from("bspc node -s north"),
+            mode_instructions: vec![],
+        },
+        Binding {
+            definition: Definition::new(evdev::Key::KEY_L)
+                .with_modifiers(&[Modifier::Super, Modifier::Shift]),
+            command: String::from("bspc node -s east"),
+            mode_instructions: vec![],
+        },
+    ];
+    let parsed = SwhkdParser::from(ParserInput::Raw(&contents))?;
+    assert_eq!(parsed.bindings, known);
+    Ok(())
+}
+
+#[test]
+fn test_longer_multiple_shorthands() -> Result<(), ParseError> {
+    let contents = "
+super + {_, ctrl +} {_, shift +} {1-2}
+    riverctl {set, toggle}-{focused, view}-tags {1-2}";
+    let known = vec![
+        Binding {
+            definition: Definition::new(evdev::Key::KEY_1).with_modifiers(&[Modifier::Super]),
+            command: String::from("riverctl set-focused-tags 1"),
+            mode_instructions: vec![],
+        },
+        Binding {
+            definition: Definition::new(evdev::Key::KEY_2).with_modifiers(&[Modifier::Super]),
+            command: String::from("riverctl set-focused-tags 2"),
+            mode_instructions: vec![],
+        },
+        Binding {
+            definition: Definition::new(evdev::Key::KEY_1)
+                .with_modifiers(&[Modifier::Super, Modifier::Control]),
+            command: String::from("riverctl toggle-focused-tags 1"),
+            mode_instructions: vec![],
+        },
+        Binding {
+            definition: Definition::new(evdev::Key::KEY_2)
+                .with_modifiers(&[Modifier::Super, Modifier::Control]),
+            command: String::from("riverctl toggle-focused-tags 2"),
+            mode_instructions: vec![],
+        },
+        Binding {
+            definition: Definition::new(evdev::Key::KEY_1)
+                .with_modifiers(&[Modifier::Super, Modifier::Shift]),
+            command: String::from("riverctl set-view-tags 1"),
+            mode_instructions: vec![],
+        },
+        Binding {
+            definition: Definition::new(evdev::Key::KEY_2)
+                .with_modifiers(&[Modifier::Super, Modifier::Shift]),
+            command: String::from("riverctl set-view-tags 2"),
+            mode_instructions: vec![],
+        },
+        Binding {
+            definition: Definition::new(evdev::Key::KEY_1).with_modifiers(&[
+                Modifier::Super,
+                Modifier::Shift,
+                Modifier::Control,
+            ]),
+            command: String::from("riverctl toggle-view-tags 1"),
+            mode_instructions: vec![],
+        },
+        Binding {
+            definition: Definition::new(evdev::Key::KEY_2).with_modifiers(&[
+                Modifier::Super,
+                Modifier::Shift,
+                Modifier::Control,
+            ]),
+            command: String::from("riverctl toggle-view-tags 2"),
+            mode_instructions: vec![],
+        },
+    ];
+    let parsed = SwhkdParser::from(ParserInput::Raw(&contents))?;
+    assert_equal_binding_set(parsed.bindings, known);
+    Ok(())
+}
+
+#[test]
+fn test_prefix() -> Result<(), ParseError> {
+    let contents = "
+super + @1
+    1
+super + ~2
+    2
+super + ~@3
+    3
+super + @~4
+    4";
+    let known = vec![
+        Binding {
+            definition: Definition {
+                modifiers: [Modifier::Super].into_iter().collect(),
+                key: Key::new(evdev::Key::KEY_1, KeyAttribute::OnRelease),
+            },
+            command: String::from("1"),
+            mode_instructions: vec![],
+        },
+        Binding {
+            definition: Definition {
+                modifiers: [Modifier::Super].into_iter().collect(),
+                key: Key::new(evdev::Key::KEY_2, KeyAttribute::Send),
+            },
+            command: String::from("2"),
+            mode_instructions: vec![],
+        },
+        Binding {
+            definition: Definition {
+                modifiers: [Modifier::Super].into_iter().collect(),
+                key: Key::new(evdev::Key::KEY_3, KeyAttribute::Both),
+            },
+            command: String::from("3"),
+            mode_instructions: vec![],
+        },
+        Binding {
+            definition: Definition {
+                modifiers: [Modifier::Super].into_iter().collect(),
+                key: Key::new(evdev::Key::KEY_4, KeyAttribute::Both),
+            },
+            command: String::from("4"),
+            mode_instructions: vec![],
+        },
+    ];
+    let parsed = SwhkdParser::from(ParserInput::Raw(&contents))?;
+    assert_equal_binding_set(parsed.bindings, known);
+    Ok(())
+}
+
+#[test]
+fn test_homerow_special_keys_top() -> Result<(), ParseError> {
+    let symbols: [&str; 7] = [
+        "Escape",
+        "BackSpace",
+        "Return",
+        "Tab",
+        "minus",
+        "equal",
+        "grave",
+    ];
+
+    let keysyms: [evdev::Key; 7] = [
+        evdev::Key::KEY_ESC,
+        evdev::Key::KEY_BACKSPACE,
+        evdev::Key::KEY_ENTER,
+        evdev::Key::KEY_TAB,
+        evdev::Key::KEY_MINUS,
+        evdev::Key::KEY_EQUAL,
+        evdev::Key::KEY_GRAVE,
+    ];
+
+    let mut contents = String::new();
+    for symbol in &symbols {
+        contents.push_str(&format!("{}\n    st\n", symbol));
+    }
+    let known = keysyms
+        .iter()
+        .map(|k| Binding {
+            definition: Definition::new(*k),
+            command: "st".to_string(),
+            mode_instructions: vec![],
+        })
+        .collect();
+    let parsed = SwhkdParser::from(ParserInput::Raw(&contents))?;
+    assert_equal_binding_set(parsed.bindings, known);
+    Ok(())
+}
+
+#[test]
+fn test_all_alphanumeric() -> Result<(), ParseError> {
+    let symbols: [&str; 36] = [
+        "a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l", "m", "n", "o", "p", "q", "r",
+        "s", "t", "u", "v", "w", "x", "y", "z", "0", "1", "2", "3", "4", "5", "6", "7", "8", "9",
+    ];
+    let keysyms: [evdev::Key; 36] = [
+        evdev::Key::KEY_A,
+        evdev::Key::KEY_B,
+        evdev::Key::KEY_C,
+        evdev::Key::KEY_D,
+        evdev::Key::KEY_E,
+        evdev::Key::KEY_F,
+        evdev::Key::KEY_G,
+        evdev::Key::KEY_H,
+        evdev::Key::KEY_I,
+        evdev::Key::KEY_J,
+        evdev::Key::KEY_K,
+        evdev::Key::KEY_L,
+        evdev::Key::KEY_M,
+        evdev::Key::KEY_N,
+        evdev::Key::KEY_O,
+        evdev::Key::KEY_P,
+        evdev::Key::KEY_Q,
+        evdev::Key::KEY_R,
+        evdev::Key::KEY_S,
+        evdev::Key::KEY_T,
+        evdev::Key::KEY_U,
+        evdev::Key::KEY_V,
+        evdev::Key::KEY_W,
+        evdev::Key::KEY_X,
+        evdev::Key::KEY_Y,
+        evdev::Key::KEY_Z,
+        evdev::Key::KEY_0,
+        evdev::Key::KEY_1,
+        evdev::Key::KEY_2,
+        evdev::Key::KEY_3,
+        evdev::Key::KEY_4,
+        evdev::Key::KEY_5,
+        evdev::Key::KEY_6,
+        evdev::Key::KEY_7,
+        evdev::Key::KEY_8,
+        evdev::Key::KEY_9,
+    ];
+
+    let mut contents = String::new();
+    for symbol in &symbols {
+        contents.push_str(&format!("{}\n    st\n", symbol));
+    }
+    let known = keysyms
+        .iter()
+        .map(|k| Binding {
+            definition: Definition::new(*k),
+            command: "st".to_string(),
+            mode_instructions: vec![],
+        })
+        .collect();
+    let parsed = SwhkdParser::from(ParserInput::Raw(&contents))?;
+    assert_equal_binding_set(parsed.bindings, known);
     Ok(())
 }
