@@ -417,6 +417,13 @@ fn binding_parser(pair: Pair<'_, Rule>) -> Result<Vec<Binding>, ParseError> {
                         _ => {}
                     }
                 }
+
+                if comm
+                    .last()
+                    .is_some_and(|last| last.len() == 1 && last[0] == "&&")
+                {
+                    comm.pop();
+                }
             }
             _ => uncompiled.ingest(component)?,
         }
