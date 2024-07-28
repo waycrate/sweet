@@ -216,7 +216,7 @@ modename_characters = _{ !NEWLINE ~ !(oneoff | swallow | command_double_ampersan
 modename            =  { modename_characters+ }
 primitives          = _{ comment | unbind | binding }
 
-mode = { "mode" ~ modename ~ oneoff? ~ swallow? ~ comment? ~ NEWLINE ~ WHITESPACE* ~ (primitives ~ NEWLINE)+ ~ "endmode" }
+mode = { "mode" ~ modename ~ oneoff? ~ swallow? ~ comment? ~ NEWLINE ~ WHITESPACE* ~ (primitives ~ NEWLINE+ ~ WHITESPACE*)+ ~ "endmode" }
 
 content = _{ comment | mode | unbind | binding | import | NEWLINE }
 
