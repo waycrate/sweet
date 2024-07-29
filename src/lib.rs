@@ -184,7 +184,7 @@ impl Definition {
     }
 
     pub fn with_modifiers(mut self, modifiers: &[Modifier]) -> Self {
-        self.modifiers = modifiers.into_iter().cloned().collect();
+        self.modifiers = modifiers.iter().cloned().collect();
         self
     }
 }
@@ -205,6 +205,28 @@ pub struct Binding {
     pub definition: Definition,
     pub command: String,
     pub mode_instructions: Vec<ModeInstruction>,
+}
+
+impl Binding {
+    pub fn running<S: AsRef<str>>(command: S) -> BindingBuilder {
+        BindingBuilder {
+            command: command.as_ref().to_string(),
+        }
+    }
+}
+
+pub struct BindingBuilder {
+    pub command: String,
+}
+
+impl BindingBuilder {
+    pub fn on(self, definition: Definition) -> Binding {
+        Binding {
+            definition,
+            command: self.command,
+            mode_instructions: vec![],
+        }
+    }
 }
 
 impl Display for Binding {
