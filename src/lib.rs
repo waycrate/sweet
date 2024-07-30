@@ -4,17 +4,21 @@ use pest_derive::Parser;
 use range::Bounds;
 use std::{
     collections::BTreeSet,
-    fmt::Display,
     fs,
     os::unix::fs::MetadataExt,
     path::{Path, PathBuf},
 };
 use thiserror::Error;
-use token::{KeyRepr, Modifier};
+
+mod bindings;
+mod definition;
 mod evdev_mappings;
 mod range;
-pub mod token;
-use crate::token::{Key, KeyAttribute, ModifierRepr};
+mod token;
+
+pub use crate::bindings::Binding;
+pub use crate::definition::{Definition, DefinitionUncompiled};
+pub use crate::token::{Key, KeyAttribute, KeyRepr, Modifier, ModifierRepr};
 
 #[derive(Debug, Error)]
 pub enum ParseError {
@@ -87,15 +91,35 @@ pub fn read_config<P: AsRef<Path>>(path: P) -> Result<String, ConfigReadError> {
 
 impl SwhkdParser {
     pub fn from(input: ParserInput) -> Result<Self, ParseError> {
-        let mut root_imports = BTreeSet::new();
-        let mut root = Self::as_import(input, &mut root_imports)?;
-        root.imports = root_imports;
-        for def in root.unbinds.iter() {
-            if let Some(i) = root.bindings.iter().position(|b| b.definition.eq(def)) {
-                root.bindings.remove(i);
+        let mut imports = BTreeSet::new();
+        let root = Self::as_import(input, &mut imports)?;
+        let mut bindings: Vec<Binding> = vec![];
+        for binding in root.bindings {
+            if let Some(b) = bindings
+                .iter_mut()
+                .find(|b| b.definition == binding.definition)
+            {
+                b.command = binding.command;
+                b.mode_instructions = binding.mode_instructions;
+                continue;
             }
+
+            if root
+                .unbinds
+                .iter()
+                .find(|b| binding.definition.eq(b))
+                .is_some()
+            {
+                continue;
+            }
+            bindings.push(binding);
         }
-        Ok(root)
+        Ok(SwhkdParser {
+            bindings,
+            imports,
+            unbinds: root.unbinds,
+            modes: root.modes,
+        })
     }
     fn as_import(input: ParserInput, seen: &mut BTreeSet<String>) -> Result<Self, ParseError> {
         let (raw, source) = match input {
@@ -116,19 +140,7 @@ impl SwhkdParser {
         let mut modes = vec![];
         for decl in contents.into_inner() {
             match decl.as_rule() {
-                Rule::binding => {
-                    for binding in binding_parser(decl)? {
-                        if let Some(b) = bindings
-                            .iter_mut()
-                            .find(|b| b.definition == binding.definition)
-                        {
-                            b.command = binding.command;
-                            b.mode_instructions = binding.mode_instructions;
-                        } else {
-                            bindings.push(binding);
-                        }
-                    }
-                }
+                Rule::binding => bindings.extend(binding_parser(decl)?),
                 Rule::unbind => unbinds.extend(unbind_parser(decl)?),
                 Rule::mode => modes.push(mode_parser(decl)?),
                 Rule::import => imports.extend(import_parser(decl)),
@@ -144,19 +156,8 @@ impl SwhkdParser {
                 continue;
             }
             let child = Self::as_import(ParserInput::Path(Path::new(&import)), seen)?;
+            bindings.extend(child.bindings);
             imports.extend(child.imports);
-
-            for binding in child.bindings {
-                if let Some(b) = bindings
-                    .iter_mut()
-                    .find(|b| b.definition == binding.definition)
-                {
-                    b.command = binding.command;
-                    b.mode_instructions = binding.mode_instructions;
-                } else {
-                    bindings.push(binding);
-                }
-            }
             unbinds.extend(child.unbinds);
             modes.extend(child.modes);
         }
@@ -169,80 +170,19 @@ impl SwhkdParser {
     }
 }
 
-#[derive(Debug, PartialEq, Eq)]
-pub struct Definition {
-    pub modifiers: BTreeSet<Modifier>,
-    pub key: Key,
-}
-
-impl Definition {
-    pub fn new(key: evdev::Key) -> Self {
-        Self {
-            modifiers: BTreeSet::default(),
-            key: Key::new(key, KeyAttribute::None),
-        }
-    }
-
-    pub fn with_modifiers(mut self, modifiers: &[Modifier]) -> Self {
-        self.modifiers = modifiers.iter().cloned().collect();
-        self
-    }
-}
-
-impl Display for Definition {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "[")?;
-        for modifier in self.modifiers.iter() {
-            write!(f, "{:?}, ", modifier)?;
-        }
-        write!(f, "{:?}", self.key)?;
-        write!(f, "]")
-    }
-}
-
-#[derive(Debug, PartialEq, Eq)]
-pub struct Binding {
-    pub definition: Definition,
-    pub command: String,
-    pub mode_instructions: Vec<ModeInstruction>,
-}
-
-impl Binding {
-    pub fn running<S: AsRef<str>>(command: S) -> BindingBuilder {
-        BindingBuilder {
-            command: command.as_ref().to_string(),
-        }
-    }
-}
-
-pub struct BindingBuilder {
-    pub command: String,
-}
-
-impl BindingBuilder {
-    pub fn on(self, definition: Definition) -> Binding {
-        Binding {
-            definition,
-            command: self.command,
-            mode_instructions: vec![],
-        }
-    }
-}
-
-impl Display for Binding {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "Binding {} \u{2192} {} (mode instructions: {:?})",
-            self.definition, self.command, self.mode_instructions
-        )
-    }
-}
-
 fn pair_to_string(pair: Pair<'_, Rule>) -> String {
     pair.as_str().to_string()
 }
 
+/// Unescapes a string that has been escaped using backslashes
+/// but only for the charset of '{}|\-+~@,' that were allowed to
+/// be escaped in the grammar in the first place.
+/// ```ignore
+/// use sweet::unescape;
+/// fn main() {
+/// assert_eq!(unescape(r"hello\\\{\}\|\-\+\~\@\,"), r"hello\{}|-+~@,");
+/// }    
+/// ```
 fn unescape(s: &str) -> String {
     let mut unescaped = String::with_capacity(s.len());
     let mut was_a_slash = None;
@@ -256,6 +196,20 @@ fn unescape(s: &str) -> String {
         }
     }
     unescaped
+}
+fn unbind_parser(pair: Pair<'_, Rule>) -> Result<Vec<Definition>, ParseError> {
+    let mut uncompiled = DefinitionUncompiled::default();
+    for thing in pair.into_inner() {
+        uncompiled.ingest(thing)?;
+    }
+    Ok(uncompiled.compile())
+}
+
+fn import_parser(pair: Pair<'_, Rule>) -> Vec<String> {
+    pair.into_inner()
+        .filter(|component| matches!(component.as_rule(), Rule::import_file))
+        .map(pair_to_string)
+        .collect()
 }
 
 fn parse_key(component: Pair<'_, Rule>) -> KeyRepr {
@@ -272,94 +226,6 @@ fn parse_key(component: Pair<'_, Rule>) -> KeyRepr {
         }
     }
     KeyRepr { key, attribute }
-}
-
-#[derive(Default)]
-pub struct DefinitionUncompiled {
-    pub modifiers: Vec<Vec<Modifier>>,
-    pub keys: Vec<Key>,
-}
-
-impl DefinitionUncompiled {
-    fn ingest(&mut self, component: Pair<'_, Rule>) -> Result<(), ParseError> {
-        match component.as_rule() {
-            Rule::modifier => {
-                self.modifiers.push(vec![
-                    ModifierRepr(pair_to_string(component).to_lowercase()).into()
-                ])
-            }
-            Rule::modifier_shorthand | Rule::modifier_omit_shorthand => self.modifiers.push(
-                component
-                    .into_inner()
-                    .map(|component| ModifierRepr(pair_to_string(component)).into())
-                    .collect(),
-            ),
-            Rule::shorthand => {
-                for shorthand_component in component.into_inner() {
-                    match shorthand_component.as_rule() {
-                        Rule::key_in_shorthand => {
-                            self.keys.push(parse_key(shorthand_component).try_into()?)
-                        }
-                        Rule::key_range => {
-                            let (lower_bound, upper_bound) =
-                                Bounds::new(shorthand_component).expand_keys()?;
-                            let keys = (lower_bound..=upper_bound)
-                                .map(|key| {
-                                    KeyRepr {
-                                        key: key.to_string(),
-                                        attribute: KeyAttribute::None,
-                                    }
-                                    .try_into()
-                                })
-                                .collect::<Result<Vec<Key>, ParseError>>()?;
-                            self.keys.extend(keys);
-                        }
-                        _ => {}
-                    }
-                }
-            }
-            Rule::key_normal => self.keys.push(parse_key(component).try_into()?),
-            _ => {}
-        };
-        Ok(())
-    }
-
-    fn compile(self) -> Vec<Definition> {
-        if self.modifiers.is_empty() {
-            return self
-                .keys
-                .into_iter()
-                .map(|key| Definition {
-                    modifiers: BTreeSet::default(),
-                    key,
-                })
-                .collect();
-        }
-        self.modifiers
-            .into_iter()
-            .multi_cartesian_product()
-            .cartesian_product(self.keys)
-            .map(|(modifiers, key)| Definition {
-                modifiers: modifiers.into_iter().collect(),
-                key,
-            })
-            .collect()
-    }
-}
-
-fn unbind_parser(pair: Pair<'_, Rule>) -> Result<Vec<Definition>, ParseError> {
-    let mut uncompiled = DefinitionUncompiled::default();
-    for thing in pair.into_inner() {
-        uncompiled.ingest(thing)?;
-    }
-    Ok(uncompiled.compile())
-}
-
-fn import_parser(pair: Pair<'_, Rule>) -> Vec<String> {
-    pair.into_inner()
-        .filter(|component| matches!(component.as_rule(), Rule::import_file))
-        .map(pair_to_string)
-        .collect()
 }
 
 fn parse_command_shorthand(pair: Pair<'_, Rule>) -> Result<Vec<String>, ParseError> {

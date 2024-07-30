@@ -2,11 +2,10 @@ use std::io::Write;
 
 use pest::error::LineColLocation::{Pos, Span};
 use sweet::{
-    token::{Key, KeyAttribute, Modifier},
     Binding, Definition, ParseError, ParserInput, SwhkdParser,
+    {Key, KeyAttribute, Modifier::*},
 };
 use thiserror::Error;
-use Modifier::*;
 
 fn assert_grammar_error_at(contents: &str, pos: (usize, usize)) {
     let parse_result = SwhkdParser::from(ParserInput::Raw(contents));
