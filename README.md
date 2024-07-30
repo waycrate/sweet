@@ -51,11 +51,7 @@ To see a structured representation of the sample config file after parsing, run 
 cargo r -- hotkeys.swhkd
 ```
 
-To run all available tests (some of which are still being ported), run
-
-```
-cargo test
-```
+To run all available tests, run `cargo test`
 
 ### Contributing
 

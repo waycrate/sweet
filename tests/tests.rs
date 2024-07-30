@@ -284,7 +284,7 @@ super + shift + b
     let known = [
         Binding::running("st").on(Definition::new(evdev::Key::KEY_A).with_modifiers(&[Super])),
         Binding::running("ts #this comment should be handled by shell")
-            .on(Definition::new(evdev::Key::KEY_B).with_modifiers(&[Super])),
+            .on(Definition::new(evdev::Key::KEY_B).with_modifiers(&[Super, Shift])),
     ];
 
     assert_eq!(parsed.bindings, known);
