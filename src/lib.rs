@@ -22,7 +22,7 @@ pub use crate::token::{Key, KeyAttribute, KeyRepr, Modifier, ModifierRepr};
 
 #[derive(Debug, Error)]
 pub enum ParseError {
-    #[error("unable to parse grammar from invalid contents")]
+    #[error("unable to parse config file")]
     // pest::error::Error being 184 bytes makes this entire enum
     // expensive to copy, hence the box is used to put it on the heap.
     Grammar(#[from] Box<pest::error::Error<Rule>>),
