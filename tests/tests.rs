@@ -262,6 +262,27 @@ w
 }
 
 #[test]
+fn test_greedy_ordering() -> Result<(), ParseError> {
+    let contents = "
+f9
+    librewolf
+
+f12
+    kitty
+        ";
+    let parsed = SwhkdParser::from(ParserInput::Raw(&contents))?;
+
+    let known = vec![
+        Binding::running("librewolf").on(Definition::new(evdev::Key::KEY_F9)),
+        Binding::running("kitty").on(Definition::new(evdev::Key::KEY_F12)),
+    ];
+
+    assert_eq!(parsed.bindings, known);
+
+    Ok(())
+}
+
+#[test]
 // this test is stricter than the previous parser
 // gimp is not a valid key or a modifier
 fn test_commented_out_keybind() {
