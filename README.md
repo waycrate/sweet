@@ -30,20 +30,17 @@ As of now, the parser prints all the bindings that a given inputs file can expan
 - [x] Imports
   - [x] Merge definitions from all imports
 - [x] Tests
-- [ ] Integration into downstream [WIP](https://github.com/lavafroth/swhkd/tree/sweet-integration)
+- [x] Integration into [downstream](https://github.com/waycrate/swhkd)
 
 ## Extra features
 - [x] Warn user if input config is not a regular file
-- [x] Set a maximum file size cap for configs
+- [x] Set a maximum file size cap for configs (limit configurable in the `build.rs`)
 - [x] Map keys and modifiers to internal representation (evdev enum variants) in a single pass
 
 
 Want to learn how the code works? Check out [my blog](https://lavafroth.is-a.dev/tags/google-summer-of-code/) where I cover each topic as I implement them.
 
 ### See it in action
-
-All the examples that are currently tested against are piled up in the
-`hotkeys.swhkd` file. These are to be ported to actual cargo tests.
 
 To see a structured representation of the sample config file after parsing, run the following:
 
@@ -52,7 +49,3 @@ cargo r -- hotkeys.swhkd
 ```
 
 To run all available tests, run `cargo test`
-
-### Contributing
-
-This repo is for cathedral style development. I'm assigned with creating the parser and there's potential financial transactions involved. Contributions are NOT welcome.
