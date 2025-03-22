@@ -5,19 +5,18 @@
   outputs =
     { nixpkgs, ... }:
     let
-      forAllSystems =
-        function:
-        nixpkgs.lib.genAttrs [
-          # leaving out darwin as it cannot run wayland
-          "x86_64-linux"
-          "aarch64-linux"
-        ] (system: function nixpkgs.legacyPackages.${system});
+      # leaving out darwin as it cannot run wayland
+      systems = [
+        "x86_64-linux"
+        "aarch64-linux"
+      ];
+      forAllSystems = f: nixpkgs.lib.genAttrs systems (system: f nixpkgs.legacyPackages.${system});
     in
     {
       devShells = forAllSystems (pkgs: {
         default = pkgs.mkShell {
           packages = [ pkgs.stdenv.cc.cc ];
-          LD_LIBRARY_PATH = "${pkgs.lib.makeLibraryPath [ pkgs.stdenv.cc.cc.lib ]}";
+          LD_LIBRARY_PATH = pkgs.stdenv.cc.cc.LIBRARY_PATH;
         };
       });
     };
