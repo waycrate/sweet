@@ -1,155 +1,115 @@
+use std::collections::HashMap;
+use lazy_static::lazy_static;
 use crate::ParseError;
+use evdev::Key;
 
-pub fn convert(s: &str) -> Result<evdev::Key, ParseError> {
-    let val = match s {
-        "q" => evdev::Key::KEY_Q,
-        "w" => evdev::Key::KEY_W,
-        "e" => evdev::Key::KEY_E,
-        "r" => evdev::Key::KEY_R,
-        "t" => evdev::Key::KEY_T,
-        "y" => evdev::Key::KEY_Y,
-        "u" => evdev::Key::KEY_U,
-        "i" => evdev::Key::KEY_I,
-        "o" => evdev::Key::KEY_O,
-        "p" => evdev::Key::KEY_P,
-        "a" => evdev::Key::KEY_A,
-        "s" => evdev::Key::KEY_S,
-        "d" => evdev::Key::KEY_D,
-        "f" => evdev::Key::KEY_F,
-        "g" => evdev::Key::KEY_G,
-        "h" => evdev::Key::KEY_H,
-        "j" => evdev::Key::KEY_J,
-        "k" => evdev::Key::KEY_K,
-        "l" => evdev::Key::KEY_L,
-        "z" => evdev::Key::KEY_Z,
-        "x" => evdev::Key::KEY_X,
-        "c" => evdev::Key::KEY_C,
-        "v" => evdev::Key::KEY_V,
-        "b" => evdev::Key::KEY_B,
-        "n" => evdev::Key::KEY_N,
-        "m" => evdev::Key::KEY_M,
-        "1" => evdev::Key::KEY_1,
-        "2" => evdev::Key::KEY_2,
-        "3" => evdev::Key::KEY_3,
-        "4" => evdev::Key::KEY_4,
-        "5" => evdev::Key::KEY_5,
-        "6" => evdev::Key::KEY_6,
-        "7" => evdev::Key::KEY_7,
-        "8" => evdev::Key::KEY_8,
-        "9" => evdev::Key::KEY_9,
-        "0" => evdev::Key::KEY_0,
-        "escape" => evdev::Key::KEY_ESC,
-        "backspace" => evdev::Key::KEY_BACKSPACE,
-        "capslock" => evdev::Key::KEY_CAPSLOCK,
-        "return" => evdev::Key::KEY_ENTER,
-        "enter" => evdev::Key::KEY_ENTER,
-        "tab" => evdev::Key::KEY_TAB,
-        "space" => evdev::Key::KEY_SPACE,
-        "plus" => evdev::Key::KEY_KPPLUS, // Shouldn't this be kpplu?
-        "kp0" => evdev::Key::KEY_KP0,
-        "kp1" => evdev::Key::KEY_KP1,
-        "kp2" => evdev::Key::KEY_KP2,
-        "kp3" => evdev::Key::KEY_KP3,
-        "kp4" => evdev::Key::KEY_KP4,
-        "kp5" => evdev::Key::KEY_KP5,
-        "kp6" => evdev::Key::KEY_KP6,
-        "kp7" => evdev::Key::KEY_KP7,
-        "kp8" => evdev::Key::KEY_KP8,
-        "kp9" => evdev::Key::KEY_KP9,
-        "kpasterisk" => evdev::Key::KEY_KPASTERISK,
-        "kpcomma" => evdev::Key::KEY_KPCOMMA,
-        "kpdot" => evdev::Key::KEY_KPDOT,
-        "kpenter" => evdev::Key::KEY_KPENTER,
-        "kpequal" => evdev::Key::KEY_KPEQUAL,
-        "kpjpcomma" => evdev::Key::KEY_KPJPCOMMA,
-        "kpleftparen" => evdev::Key::KEY_KPLEFTPAREN,
-        "kpminus" => evdev::Key::KEY_KPMINUS,
-        "kpplusminus" => evdev::Key::KEY_KPPLUSMINUS,
-        "kprightparen" => evdev::Key::KEY_KPRIGHTPAREN,
-        "minus" => evdev::Key::KEY_MINUS,
-        "-" => evdev::Key::KEY_MINUS,
-        "equal" => evdev::Key::KEY_EQUAL,
-        "=" => evdev::Key::KEY_EQUAL,
-        "grave" => evdev::Key::KEY_GRAVE,
-        "`" => evdev::Key::KEY_GRAVE,
-        "print" => evdev::Key::KEY_SYSRQ,
-        "volumeup" => evdev::Key::KEY_VOLUMEUP,
-        "xf86audioraisevolume" => evdev::Key::KEY_VOLUMEUP,
-        "volumedown" => evdev::Key::KEY_VOLUMEDOWN,
-        "xf86audiolowervolume" => evdev::Key::KEY_VOLUMEDOWN,
-        "mute" => evdev::Key::KEY_MUTE,
-        "xf86audiomute" => evdev::Key::KEY_MUTE,
-        "brightnessup" => evdev::Key::KEY_BRIGHTNESSUP,
-        "xf86monbrightnessup" => evdev::Key::KEY_BRIGHTNESSUP,
-        "brightnessdown" => evdev::Key::KEY_BRIGHTNESSDOWN,
-        "xf86audiomedia" => evdev::Key::KEY_MEDIA,
-        "xf86audiomicmute" => evdev::Key::KEY_MICMUTE,
-        "micmute" => evdev::Key::KEY_MICMUTE,
-        "xf86audionext" => evdev::Key::KEY_NEXTSONG,
-        "xf86audioplay" => evdev::Key::KEY_PLAYPAUSE,
-        "xf86audioprev" => evdev::Key::KEY_PREVIOUSSONG,
-        "xf86audiostop" => evdev::Key::KEY_STOP,
-        "xf86monbrightnessdown" => evdev::Key::KEY_BRIGHTNESSDOWN,
-        "," => evdev::Key::KEY_COMMA,
-        "comma" => evdev::Key::KEY_COMMA,
-        "." => evdev::Key::KEY_DOT,
-        "dot" => evdev::Key::KEY_DOT,
-        "period" => evdev::Key::KEY_DOT,
-        "/" => evdev::Key::KEY_SLASH,
-        "question" => evdev::Key::KEY_QUESTION,
-        "slash" => evdev::Key::KEY_SLASH,
-        "backslash" => evdev::Key::KEY_BACKSLASH,
-        "\\" => evdev::Key::KEY_BACKSLASH,
-        "leftbrace" => evdev::Key::KEY_LEFTBRACE,
-        "[" => evdev::Key::KEY_LEFTBRACE,
-        "bracketleft" => evdev::Key::KEY_LEFTBRACE,
-        "rightbrace" => evdev::Key::KEY_RIGHTBRACE,
-        "]" => evdev::Key::KEY_RIGHTBRACE,
-        "bracketright" => evdev::Key::KEY_RIGHTBRACE,
-        ";" => evdev::Key::KEY_SEMICOLON,
-        "scroll_lock" => evdev::Key::KEY_SCROLLLOCK,
-        "semicolon" => evdev::Key::KEY_SEMICOLON,
-        "'" => evdev::Key::KEY_APOSTROPHE,
-        "apostrophe" => evdev::Key::KEY_APOSTROPHE,
-        "left" => evdev::Key::KEY_LEFT,
-        "right" => evdev::Key::KEY_RIGHT,
-        "up" => evdev::Key::KEY_UP,
-        "down" => evdev::Key::KEY_DOWN,
-        "pause" => evdev::Key::KEY_PAUSE,
-        "home" => evdev::Key::KEY_HOME,
-        "delete" => evdev::Key::KEY_DELETE,
-        "insert" => evdev::Key::KEY_INSERT,
-        "end" => evdev::Key::KEY_END,
-        "pause" => evdev::Key::KEY_PAUSE,
-        "prior" => evdev::Key::KEY_PAGEDOWN,
-        "next" => evdev::Key::KEY_PAGEUP,
-        "pagedown" => evdev::Key::KEY_PAGEDOWN,
-        "pageup" => evdev::Key::KEY_PAGEUP,
-        "f1" => evdev::Key::KEY_F1,
-        "f2" => evdev::Key::KEY_F2,
-        "f3" => evdev::Key::KEY_F3,
-        "f4" => evdev::Key::KEY_F4,
-        "f5" => evdev::Key::KEY_F5,
-        "f6" => evdev::Key::KEY_F6,
-        "f7" => evdev::Key::KEY_F7,
-        "f8" => evdev::Key::KEY_F8,
-        "f9" => evdev::Key::KEY_F9,
-        "f10" => evdev::Key::KEY_F10,
-        "f11" => evdev::Key::KEY_F11,
-        "f12" => evdev::Key::KEY_F12,
-        "f13" => evdev::Key::KEY_F13,
-        "f14" => evdev::Key::KEY_F14,
-        "f15" => evdev::Key::KEY_F15,
-        "f16" => evdev::Key::KEY_F16,
-        "f17" => evdev::Key::KEY_F17,
-        "f18" => evdev::Key::KEY_F18,
-        "f19" => evdev::Key::KEY_F19,
-        "f20" => evdev::Key::KEY_F20,
-        "f21" => evdev::Key::KEY_F21,
-        "f22" => evdev::Key::KEY_F22,
-        "f23" => evdev::Key::KEY_F23,
-        "f24" => evdev::Key::KEY_F24,
-        _ => return Err(ParseError::InvalidKey(s.to_string())),
+// lazy_static to initialize a static global HashMap
+lazy_static! {
+    static ref KEY_MAP: HashMap<&'static str, Key> = {
+        let mut m = HashMap::new();
+        m.insert("q", Key::KEY_Q);
+        m.insert("w", Key::KEY_W);
+        m.insert("e", Key::KEY_E);
+        m.insert("r", Key::KEY_R);
+        m.insert("t", Key::KEY_T);
+        m.insert("y", Key::KEY_Y);
+        m.insert("u", Key::KEY_U);
+        m.insert("i", Key::KEY_I);
+        m.insert("o", Key::KEY_O);
+        m.insert("p", Key::KEY_P);
+        m.insert("a", Key::KEY_A);
+        m.insert("s", Key::KEY_S);
+        m.insert("d", Key::KEY_D);
+        m.insert("f", Key::KEY_F);
+        m.insert("g", Key::KEY_G);
+        m.insert("h", Key::KEY_H);
+        m.insert("j", Key::KEY_J);
+        m.insert("k", Key::KEY_K);
+        m.insert("l", Key::KEY_L);
+        m.insert("z", Key::KEY_Z);
+        m.insert("x", Key::KEY_X);
+        m.insert("c", Key::KEY_C);
+        m.insert("v", Key::KEY_V);
+        m.insert("b", Key::KEY_B);
+        m.insert("n", Key::KEY_N);
+        m.insert("m", Key::KEY_M);
+        m.insert("1", Key::KEY_1);
+        m.insert("2", Key::KEY_2);
+        m.insert("3", Key::KEY_3);
+        m.insert("4", Key::KEY_4);
+        m.insert("5", Key::KEY_5);
+        m.insert("6", Key::KEY_6);
+        m.insert("7", Key::KEY_7);
+        m.insert("8", Key::KEY_8);
+        m.insert("9", Key::KEY_9);
+        m.insert("0", Key::KEY_0);
+        m.insert("escape", Key::KEY_ESC);
+        m.insert("backspace", Key::KEY_BACKSPACE);
+        m.insert("capslock", Key::KEY_CAPSLOCK);
+        m.insert("return", Key::KEY_ENTER);
+        m.insert("enter", Key::KEY_ENTER);
+        m.insert("tab", Key::KEY_TAB);
+        m.insert("space", Key::KEY_SPACE);
+        m.insert("plus", Key::KEY_KPPLUS);
+        m.insert("minus", Key::KEY_MINUS);
+        m.insert("-", Key::KEY_MINUS);
+        m.insert("equal", Key::KEY_EQUAL);
+        m.insert("=", Key::KEY_EQUAL);
+        m.insert("grave", Key::KEY_GRAVE);
+        m.insert("`", Key::KEY_GRAVE);
+        m.insert("print", Key::KEY_SYSRQ);
+        m.insert("volumeup", Key::KEY_VOLUMEUP);
+        m.insert("volumedown", Key::KEY_VOLUMEDOWN);
+        m.insert("mute", Key::KEY_MUTE);
+        m.insert("brightnessup", Key::KEY_BRIGHTNESSUP);
+        m.insert("brightnessdown", Key::KEY_BRIGHTNESSDOWN);
+        m.insert("comma", Key::KEY_COMMA);
+        m.insert(",", Key::KEY_COMMA);
+        m.insert("dot", Key::KEY_DOT);
+        m.insert("period", Key::KEY_DOT);
+        m.insert(".", Key::KEY_DOT);
+        m.insert("slash", Key::KEY_SLASH);
+        m.insert("/", Key::KEY_SLASH);
+        m.insert("backslash", Key::KEY_BACKSLASH);
+        m.insert("\\", Key::KEY_BACKSLASH);
+        m.insert("leftbrace", Key::KEY_LEFTBRACE);
+        m.insert("[", Key::KEY_LEFTBRACE);
+        m.insert("rightbrace", Key::KEY_RIGHTBRACE);
+        m.insert("]", Key::KEY_RIGHTBRACE);
+        m.insert("semicolon", Key::KEY_SEMICOLON);
+        m.insert(";", Key::KEY_SEMICOLON);
+        m.insert("apostrophe", Key::KEY_APOSTROPHE);
+        m.insert("'", Key::KEY_APOSTROPHE);
+        m.insert("left", Key::KEY_LEFT);
+        m.insert("right", Key::KEY_RIGHT);
+        m.insert("up", Key::KEY_UP);
+        m.insert("down", Key::KEY_DOWN);
+        m.insert("pause", Key::KEY_PAUSE);
+        m.insert("home", Key::KEY_HOME);
+        m.insert("delete", Key::KEY_DELETE);
+        m.insert("insert", Key::KEY_INSERT);
+        m.insert("end", Key::KEY_END);
+        m.insert("pagedown", Key::KEY_PAGEDOWN);
+        m.insert("pageup", Key::KEY_PAGEUP);
+        m.insert("f1", Key::KEY_F1);
+        m.insert("f2", Key::KEY_F2);
+        m.insert("f3", Key::KEY_F3);
+        m.insert("f4", Key::KEY_F4);
+        m.insert("f5", Key::KEY_F5);
+        m.insert("f6", Key::KEY_F6);
+        m.insert("f7", Key::KEY_F7);
+        m.insert("f8", Key::KEY_F8);
+        m.insert("f9", Key::KEY_F9);
+        m.insert("f10", Key::KEY_F10);
+        m.insert("f11", Key::KEY_F11);
+        m.insert("f12", Key::KEY_F12);
+        m
     };
-    Ok(val)
+}
+
+pub fn convert(s: &str) -> Result<Key, ParseError> {
+    KEY_MAP
+        .get(s)
+        .copied()
+        .ok_or_else(|| ParseError::InvalidKey(s.to_string()))
 }
