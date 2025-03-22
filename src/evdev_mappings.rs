@@ -3,7 +3,7 @@ use evdev::Key;
 use crate::ParseError;
 
 // Perfect Hash Function static map (loads at compile time)
-static KEY_MAPPINGS: phf::Map<&'static str, Key> = phf_map! {
+static KEY_MAP: phf::Map<&'static str, Key> = phf_map! {
     "q" => Key::KEY_Q,
     "w" => Key::KEY_W,
     "e" => Key::KEY_E,
